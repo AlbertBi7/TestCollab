@@ -41,6 +41,7 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+    
 
         <Features />
 

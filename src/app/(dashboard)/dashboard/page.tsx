@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-12">
+    <div className="max-w-350 mx-auto space-y-12">
       
       {/* --- THE MODAL --- */}
       <CreateWorkspaceModal 
@@ -80,7 +80,7 @@ export default function DashboardPage() {
         {/* --- Stats Section --- */}
         <div className="lg:col-span-5 grid grid-cols-2 gap-4">
           <Card className="col-span-2 sm:col-span-1 rounded-[40px] border-none shadow-[0_20px_40px_-15px_rgba(0,0,0,0.05)] hover:scale-[1.02] transition-transform duration-300">
-            <CardContent className="p-8 h-full flex flex-col justify-between min-h-[280px]">
+            <CardContent className="p-8 h-full flex flex-col justify-between min-h-70">
               <div className="flex justify-between items-start">
                 <span className="text-stone-400 font-medium text-lg">Workspaces</span>
                 <div className="w-10 h-10 rounded-full bg-[#d9f99d] flex items-center justify-center text-[#365314]">
@@ -100,7 +100,7 @@ export default function DashboardPage() {
           </Card>
 
           <div className="col-span-2 sm:col-span-1 flex flex-col gap-4">
-            <Card className="flex-1 rounded-[32px] border-none bg-[#d9f99d] relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
+            <Card className="flex-1 rounded-4xl border-none bg-[#d9f99d] relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
               <CardContent className="p-6 h-full flex flex-col justify-center relative z-10">
                 <FileText className="absolute -right-4 -bottom-4 w-24 h-24 text-[#bef264] rotate-12 group-hover:scale-110 transition-transform z-0" />
                 <h3 className="text-4xl font-semibold text-[#1a2e05] relative z-10">0</h3>
@@ -108,7 +108,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="flex-1 rounded-[32px] border-none bg-[#1c1917] hover:scale-[1.02] transition-transform duration-300">
+            <Card className="flex-1 rounded-4xl border-none bg-[#1c1917] hover:scale-[1.02] transition-transform duration-300">
               <CardContent className="p-6 h-full flex items-center justify-between text-white">
                 <div>
                   <p className="text-stone-400 text-sm mb-1">Storage</p>
@@ -131,7 +131,7 @@ export default function DashboardPage() {
         </div>
 
         {workspaces.length === 0 && !loading ? (
-          <div className="text-center py-10 text-stone-400 border-2 border-dashed border-stone-200 rounded-[32px]">
+          <div className="text-center py-10 text-stone-400 border-2 border-dashed border-stone-200 rounded-4xl">
             No flows yet. Create one above!
           </div>
         ) : (
@@ -150,7 +150,7 @@ export default function DashboardPage() {
               />
             ))}
             
-            <div className="bg-stone-200/50 p-6 rounded-[40px] flex flex-col h-full min-h-[300px]">
+            <div className="bg-stone-200/50 p-6 rounded-[40px] flex flex-col h-full min-h-75">
                <div className="flex items-center gap-2 mb-6 text-stone-500">
                   <Activity className="w-5 h-5" />
                   <span className="font-bold uppercase tracking-widest text-xs">Live Feed</span>
@@ -171,9 +171,9 @@ export default function DashboardPage() {
 function WorkspaceCard({ id, title, type, image, members, updated }: any) {
   return (
     // Wrap the card in a Link to the dynamic route
-    <Link href={`/dashboard/workspaces/${id}`}>
+    <Link href={`/dashboard/workspace/${id}`}>
       <div className="group bg-white p-3 pb-6 rounded-[40px] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 cursor-pointer border border-transparent hover:border-stone-100 h-full">
-        <div className="aspect-[4/3] rounded-[32px] overflow-hidden relative mb-5">
+        <div className="aspect-4/3 rounded-4xl overflow-hidden relative mb-5">
           <img src={image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={title} />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
           <button className="absolute top-4 right-4 w-10 h-10 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:text-black">
