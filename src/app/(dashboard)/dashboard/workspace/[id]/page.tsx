@@ -2,57 +2,86 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase"; // <--- NOW USING SUPABASE
 import { 
-  Search, ArrowUpDown, LayoutDashboard, LayoutGrid, 
-  Plus, Pencil, Layers, ChevronDown, FolderOpen, ChevronRight, Folder,
-  UserPlus, Settings
+  Search, LayoutDashboard, LayoutGrid, 
+  Plus, Pencil, Layers, ChevronDown, FolderOpen, UserPlus
 } from "lucide-react";
 import { ClusterView } from "@/components/workspace/ClusterView";
 import { GridView } from "@/components/workspace/GridView";
 import { AddReferenceModal } from "@/components/workspace/AddReferenceModal";
 
-// Mock Initial Data
-const INITIAL_FILES = [
-  { id: '1', title: 'Moodboard_v4.jpg', type: 'image', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500', author: 'Sarah', date: '2h ago' },
-  { id: '2', title: 'Hero_Concept.png', type: 'image', url: 'https://images.unsplash.com/photo-1558655146-d09347e92766?w=500', author: 'Alex', date: '5h ago' },
-  { id: '3', title: 'Nature_BG.jpg', type: 'image', url: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=500', author: 'Alex', date: '1d ago' },
-];
-
 export default function WorkspacePage() {
-  const { id } = useParams();
+  const { id } = useParams(); // This is the workspace_id
   const [workspace, setWorkspace] = useState<any>(null);
+  const [files, setFiles] = useState<any[]>([]);
   const [view, setView] = useState<"cluster" | "grid">("cluster");
-  const [files, setFiles] = useState(INITIAL_FILES); // Local state for files
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [loading, setLoading] = useState(true);
 
-  // Fetch Workspace Meta Data
-  
+  // 1. Fetch Workspace & References from Supabase
   useEffect(() => {
-  console.log("Workspace Page Mounted. ID:", id); // <--- Add this
-  if (!id) return;
-  // ... rest of code
-    const fetchWorkspace = async () => {
-      const docRef = doc(db, "workspaces", id as string);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setWorkspace({ id: docSnap.id, ...docSnap.data() });
+    if (!id) return;
+    
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Run both queries in parallel for speed
+        const [workspaceResponse, filesResponse] = await Promise.all([
+          // Query 1: Get Workspace Details
+          supabase
+            .from('workspaces')
+            .select('*')
+            .eq('workspace_id', id)
+            .single(),
+
+          // Query 2: Get Files (References)
+          supabase
+            .from('references')
+            .select('*')
+            .eq('workspace_id', id)
+            .order('reference_created_at', { ascending: false })
+        ]);
+
+        if (workspaceResponse.error) throw workspaceResponse.error;
+        if (filesResponse.error) throw filesResponse.error;
+
+        setWorkspace(workspaceResponse.data);
+        setFiles(filesResponse.data || []);
+
+      } catch (err) {
+        console.error("Error loading workspace:", err);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchWorkspace();
+
+    fetchData();
   }, [id]);
 
+  // 2. Handle New File (Optimistic Update)
+  // This is passed to the modal so the UI updates instantly after upload
   const handleAddFile = (newFile: any) => {
     setFiles((prev) => [newFile, ...prev]);
     setToastMessage("Reference Added Successfully");
-    // Switch to grid view so they can see it
-    setView('grid');
+    setView('grid'); // Switch to grid so user sees the new file
     setTimeout(() => setToastMessage(""), 3000);
   };
 
-  if (!workspace) return <div className="p-8">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-stone-50">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-12 w-12 bg-stone-200 rounded-full mb-4"></div>
+          <div className="h-4 w-32 bg-stone-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!workspace) return <div className="p-8 text-center text-stone-500">Workspace not found</div>;
 
   return (
     <div className="max-w-[1600px] mx-auto h-[calc(100vh-2rem)] grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8">
@@ -65,7 +94,8 @@ export default function WorkspacePage() {
       <AddReferenceModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onAdd={handleAddFile} 
+        
+        workspaceId={id as string} // Pass the ID so the modal knows where to save
       />
 
       {/* --- LEFT PANEL --- */}
@@ -93,10 +123,10 @@ export default function WorkspacePage() {
                </div>
                <ul className="pl-10 mt-1 space-y-1">
                   <li className="flex items-center gap-2 py-2 text-sm text-stone-500 hover:text-stone-900 cursor-pointer">
-                     <span className="w-1.5 h-1.5 rounded-full bg-stone-300"></span> Inspiration
+                      <span className="w-1.5 h-1.5 rounded-full bg-stone-300"></span> Inspiration
                   </li>
                   <li className="flex items-center gap-2 py-2 text-sm text-stone-500 hover:text-stone-900 cursor-pointer">
-                     <span className="w-1.5 h-1.5 rounded-full bg-stone-300"></span> Guidelines
+                      <span className="w-1.5 h-1.5 rounded-full bg-stone-300"></span> Guidelines
                   </li>
                </ul>
             </li>
@@ -112,26 +142,27 @@ export default function WorkspacePage() {
                 <div className="flex-1">
                     <div className="flex items-center gap-4 mb-2">
                         <h1 className="text-4xl font-semibold text-stone-900 flex items-center gap-3">
-                            {workspace.title}
+                            {workspace.workspace_title} {/* Use DB column name */}
                         </h1>
                         <button className="p-2 hover:bg-stone-100 rounded-full text-stone-400 hover:text-stone-900 transition-colors">
                             <Pencil className="w-4 h-4" />
                         </button>
-                        <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border cursor-pointer select-none ${workspace.type === 'public' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-stone-100 text-stone-600 border-stone-200'}`}>
-                            {workspace.type || 'Private'}
+                        <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border cursor-pointer select-none ${workspace.workspace_visibility === 'public' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-stone-100 text-stone-600 border-stone-200'}`}>
+                            {workspace.workspace_visibility || 'Private'} {/* Use DB column name */}
                         </div>
                     </div>
                     <p className="text-stone-500 max-w-2xl leading-relaxed">
-                        {workspace.description || "Collection of assets and ideas."}
+                        {workspace.workspace_description || "Collection of assets and ideas."}
                     </p>
                 </div>
 
                 {/* MEMBERS */}
                 <div className="flex flex-col items-end gap-4">
                     <div className="flex items-center -space-x-3">
-                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100" className="w-10 h-10 rounded-full border-2 border-white ring-1 ring-stone-200" />
-                        <img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100" className="w-10 h-10 rounded-full border-2 border-white ring-1 ring-stone-200" />
-                        <div className="w-10 h-10 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-xs font-bold text-stone-500">+2</div>
+                        {/* Static placeholders for now */}
+                        <div className="w-10 h-10 rounded-full bg-stone-200 border-2 border-white"></div>
+                        <div className="w-10 h-10 rounded-full bg-stone-300 border-2 border-white"></div>
+                        <div className="w-10 h-10 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-xs font-bold text-stone-500">+</div>
                     </div>
                     <div className="flex gap-2">
                         <button onClick={() => setToastMessage("Invitation Copied")} className="px-5 py-2.5 rounded-full bg-[#1c1917] text-white text-sm font-medium hover:bg-stone-800 transition-colors flex items-center gap-2">
@@ -165,6 +196,7 @@ export default function WorkspacePage() {
 
         {/* CONTENT */}
         <div className="flex-1 relative overflow-y-auto">
+            {/* Pass actual fetched files to the views */}
             {view === 'cluster' ? <ClusterView /> : <GridView files={files} />}
         </div>
 

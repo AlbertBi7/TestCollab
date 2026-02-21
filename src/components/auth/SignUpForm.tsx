@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+
+import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { User, Mail, Lock, Eye, EyeOff, ShieldCheck, Check, CheckCircle2 } from "lucide-react";
@@ -50,25 +49,26 @@ export function SignUpForm() {
     setLoading(true);
     setError("");
 
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      const photoURL = "https://api.dicebear.com/7.x/avataaars/svg?seed=" + name;
-      await updateProfile(user, { displayName: name, photoURL });
-
-      await setDoc(doc(db, "users", user.uid), {
-        userId: user.uid,
-        email: user.email!,
-        displayName: name,
-        photoUrl: photoURL,
-        skills: [],
-        bio: ""
+    try{
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          // This data is passed to the SQL Trigger 'handle_new_user'
+          data: {
+            full_name: name,
+            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+          },
+        },
       });
 
+      if (error) throw error;
+
+      // 2. Redirect to dashboard on success
       router.push("/dashboard");
+
     } catch (err: any) {
-      setError("Failed to create account.");
+      setError(err.message || "Failed to create account");
     } finally {
       setLoading(false);
     }
@@ -162,9 +162,9 @@ export function SignUpForm() {
       </form>
 
       <div className="relative flex items-center py-6">
-        <div className="flex-grow border-t border-stone-200"></div>
-        <span className="flex-shrink-0 mx-4 text-stone-400 text-xs font-bold uppercase">Or</span>
-        <div className="flex-grow border-t border-stone-200"></div>
+        <div className="grow border-t border-stone-200"></div>
+        <span className="shrink-0 mx-4 text-stone-400 text-xs font-bold uppercase">Or</span>
+        <div className="grow border-t border-stone-200"></div>
       </div>
 
       <p className="text-center text-stone-500 font-medium">

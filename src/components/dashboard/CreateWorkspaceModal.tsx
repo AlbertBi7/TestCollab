@@ -1,161 +1,146 @@
 "use client";
 
 import { useState } from "react";
-import { X, Loader2, Lock, Globe } from "lucide-react"; // Import icons for privacy
-import { db, auth } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { X, Loader2, Upload } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 
-interface ModalProps {
+interface CreateWorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  setWorkspaces?: React.Dispatch<React.SetStateAction<any[]>>; 
+  setWorkspaces: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
-export function CreateWorkspaceModal({ isOpen, onClose, setWorkspaces }: ModalProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [privacy, setPrivacy] = useState<"private" | "public">("private"); // New State
+export function CreateWorkspaceModal({ isOpen, onClose, setWorkspaces }: CreateWorkspaceModalProps) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [visibility, setVisibility] = useState("private");
 
   if (!isOpen) return null;
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !auth.currentUser) return;
+    if (!user) return;
 
-    // 1. OPTIMISTIC UPDATE: Create a fake "temp" workspace immediately
-    const tempId = Math.random().toString();
-    const newWorkspace = {
-      id: tempId,
-      title: name,
-      description: description,
-      type: privacy, // Use the selected privacy
-      members: [auth.currentUser.uid],
-      createdAt: new Date(), 
-      coverImage: `https://images.unsplash.com/photo-${privacy === 'private' ? '1506784983877-45594efa4cbe' : '1618005182384-a83a8bd57fbe'}?auto=format&fit=crop&q=80&w=800` 
-    };
-
-    // Update the list INSTANTLY
-    if (setWorkspaces) {
-      setWorkspaces((prev) => [newWorkspace, ...prev]);
-    }
-    
-    // Close modal INSTANTLY
-    onClose(); 
-    
-    // Reset form for next time
-    setName("");
-    setDescription("");
-    setPrivacy("private");
+    setLoading(true);
 
     try {
-      // 2. Send to Firebase in background
-      await addDoc(collection(db, "workspaces"), {
-        title: name,
-        description: description,
-        type: privacy, // Save privacy setting
-        ownerId: auth.currentUser.uid,
-        createdAt: serverTimestamp(),
-        members: [auth.currentUser.uid],
-        coverImage: newWorkspace.coverImage
-      });
+      // 1. Insert into Supabase
+      const { data, error } = await supabase
+        .from('workspaces')
+        .insert({
+          workspace_owner_id: user.id,
+          workspace_title: title,
+          workspace_description: description,
+          workspace_visibility: visibility,
+          // 'workspace_id' and 'created_at' are generated automatically by DB
+        })
+        .select() // <--- Important: Return the inserted row
+        .single();
+
+      if (error) throw error;
+
+      // 2. Update Parent State (Optimistic UI)
+      // Now 'data' contains 'workspace_id', so the key prop in Dashboard won't fail!
+      setWorkspaces((prev) => [data, ...prev]);
+
+      // 3. Reset and Close
+      setTitle("");
+      setDescription("");
+      setVisibility("private");
+      onClose();
 
     } catch (error) {
-      console.error("Error creating workspace:", error);
-      // Rollback if failed (optional, but good practice)
-      if (setWorkspaces) {
-        setWorkspaces((prev) => prev.filter(w => w.id !== tempId));
-      }
-      alert("Failed to save workspace.");
+      console.error("Failed to create workspace:", error);
+      alert("Error creating workspace");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-[32px] w-full max-w-md p-8 shadow-2xl scale-100 animate-in zoom-in-95 duration-200 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm" 
+        onClick={onClose}
+      ></div>
+
+      {/* Modal Content */}
+      <div className="bg-white w-full max-w-lg rounded-[32px] p-8 relative z-10 shadow-2xl animate-in zoom-in-95 duration-200">
         
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 rounded-full hover:bg-stone-100 transition-colors">
-          <X className="w-5 h-5 text-stone-500" />
-        </button>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-stone-900">New Workspace</h2>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-900 transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
 
-        <h2 className="text-2xl font-bold text-stone-900 mb-2">Create Workspace</h2>
-        <p className="text-stone-500 mb-6">Start a new collection for your project.</p>
-
-        <form onSubmit={handleCreate} className="space-y-5">
-          
-          {/* 1. Workspace Name */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-500 ml-3">Workspace Name</label>
-            <input 
-              autoFocus
-              type="text" 
-              placeholder="e.g., Q4 Marketing Campaign" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-5 py-3 bg-stone-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-stone-900 focus:outline-none transition-all font-medium text-stone-900 placeholder:text-stone-400"
-              required
-            />
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Title Input */}
+          <div>
+             <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Workspace Name</label>
+             <input 
+               autoFocus
+               type="text" 
+               value={title}
+               onChange={(e) => setTitle(e.target.value)}
+               placeholder="e.g. Q4 Marketing Campaign"
+               className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:outline-none focus:ring-2 focus:ring-lime-500/50 transition-all font-bold text-stone-900 text-lg" 
+               required
+             />
           </div>
 
-          {/* 2. Privacy Selector */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-500 ml-3">Privacy</label>
-            <div className="grid grid-cols-2 gap-3">
+          {/* Description Input */}
+          <div>
+             <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Description</label>
+             <textarea 
+               value={description}
+               onChange={(e) => setDescription(e.target.value)}
+               placeholder="What is this workspace for?"
+               rows={3}
+               className="w-full px-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:outline-none focus:ring-2 focus:ring-lime-500/50 transition-all font-medium text-stone-900 resize-none" 
+             />
+          </div>
+
+          {/* Visibility Toggle */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">Visibility</label>
+            <div className="flex bg-stone-50 p-1 rounded-xl border border-stone-200">
               <button
                 type="button"
-                onClick={() => setPrivacy("private")}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all font-medium ${
-                  privacy === "private" 
-                    ? "border-stone-900 bg-stone-900 text-white" 
-                    : "border-stone-100 bg-stone-50 text-stone-500 hover:bg-stone-100"
-                }`}
+                onClick={() => setVisibility("private")}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${visibility === "private" ? "bg-white shadow-sm text-stone-900" : "text-stone-400 hover:text-stone-600"}`}
               >
-                <Lock className="w-4 h-4" />
                 Private
               </button>
               <button
                 type="button"
-                onClick={() => setPrivacy("public")}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 transition-all font-medium ${
-                  privacy === "public" 
-                    ? "border-lime-500 bg-lime-500 text-white" 
-                    : "border-stone-100 bg-stone-50 text-stone-500 hover:bg-stone-100"
-                }`}
+                onClick={() => setVisibility("public")}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${visibility === "public" ? "bg-white shadow-sm text-emerald-700" : "text-stone-400 hover:text-stone-600"}`}
               >
-                <Globe className="w-4 h-4" />
                 Public
               </button>
             </div>
-            <p className="text-[10px] text-stone-400 font-medium ml-3 mt-1">
-              {privacy === "private" 
-                ? "Only you and invited members can view this." 
-                : "Anyone with the link can view this workspace."}
-            </p>
           </div>
 
-          {/* 3. Description */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold uppercase tracking-wider text-stone-500 ml-3">Description</label>
-            <textarea 
-              placeholder="What is this workspace for?" 
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-5 py-3 bg-stone-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-stone-900 focus:outline-none transition-all font-medium text-stone-900 resize-none placeholder:text-stone-400"
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="pt-2 flex gap-3">
-            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl font-bold text-stone-500 hover:bg-stone-100 transition-colors">
-              Cancel
+          <div className="flex gap-3 pt-4">
+            <button 
+                type="button"
+                onClick={onClose} 
+                disabled={loading}
+                className="flex-1 py-3.5 rounded-xl border border-stone-200 text-stone-600 font-bold hover:bg-stone-50 transition-colors disabled:opacity-50"
+            >
+                Cancel
             </button>
             <button 
-              type="submit" 
-              disabled={loading}
-              className="flex-1 py-3 bg-[#1c1917] text-white rounded-xl font-bold hover:bg-stone-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg shadow-stone-900/10"
+                type="submit"
+                disabled={loading || !title.trim()}
+                className="flex-1 py-3.5 rounded-xl bg-[#1c1917] text-white font-bold hover:bg-stone-800 transition-colors shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Workspace"}
+                {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Create Workspace"}
             </button>
           </div>
         </form>

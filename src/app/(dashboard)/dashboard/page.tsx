@@ -2,15 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase"; // <--- NOW USING SUPABASE
 import { Card, CardContent } from "@/components/ui/Card";
 import { CreateWorkspaceModal } from "@/components/dashboard/CreateWorkspaceModal"; 
-import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore"; 
 import { 
   Plus, Bell, LayoutGrid, FileText, Activity, ArrowUpRight, 
-  FolderPlus, Users
+  Users
 } from "lucide-react";
-import Link from "next/link"; // Ensure this is imported
+import Link from "next/link";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -20,23 +19,28 @@ export default function DashboardPage() {
 
   const date = new Date().toLocaleDateString("en-US", { weekday: 'short', day: 'numeric', month: 'short' });
 
-  // --- REALTIME DATA FETCHING ---
+  // --- SUPABASE DATA FETCHING ---
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, "workspaces"),
-      where("ownerId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
+    const fetchWorkspaces = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('workspaces')
+          .select('*')
+          .eq('workspace_owner_id', user.id) // Use the correct column name
+          .order('workspace_created_at', { ascending: false });
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setWorkspaces(docs);
-      setLoading(false);
-    });
+        if (error) throw error;
+        setWorkspaces(data || []);
+      } catch (err) {
+        console.error("Error loading workspaces:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
+    fetchWorkspaces();
   }, [user]);
 
 
@@ -44,10 +48,11 @@ export default function DashboardPage() {
     <div className="max-w-350 mx-auto space-y-12">
       
       {/* --- THE MODAL --- */}
+      {/* We pass the setWorkspaces function so the modal can update the UI instantly when a new workspace is created */}
       <CreateWorkspaceModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        setWorkspaces={setWorkspaces} // Pass this if you are using optimistic UI
+        setWorkspaces={setWorkspaces} 
       />
 
       {/* --- Header Section --- */}
@@ -125,7 +130,7 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-8 px-2">
           <h2 className="text-2xl font-medium text-stone-900">Recent Flows</h2>
-          <Link href="/dashboard/workspaces" className="text-sm font-bold text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-widest">
+          <Link href="/dashboard" className="text-sm font-bold text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-widest">
             View All
           </Link>
         </div>
@@ -137,27 +142,28 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
-            {/* Map through Real Data */}
+            {/* Map through Supabase Data */}
             {workspaces.map((ws) => (
-              <WorkspaceCard 
-                key={ws.id}
-                id={ws.id}  // <--- IMPORTANT: Passed ID here
-                title={ws.title} 
-                type={ws.type || "Private"} 
-                image={ws.coverImage || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe"}
-                members={ws.members?.length || 1}
-                updated="Just now"
-              />
-            ))}
-            
+            <WorkspaceCard 
+              key={ws.workspace_id} // <--- CRITICAL: Must use workspace_id
+              id={ws.workspace_id}  // <--- CRITICAL: Must use workspace_id
+              title={ws.workspace_title} // <--- CRITICAL: Must use workspace_title
+              type={ws.workspace_visibility || "Private"} 
+              // Random image for now since we don't have a cover image column yet
+              image={`https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80`}
+              members={1} 
+              updated={new Date(ws.workspace_created_at).toLocaleDateString()}
+            />
+          ))}
+                      
             <div className="bg-stone-200/50 p-6 rounded-[40px] flex flex-col h-full min-h-75">
                <div className="flex items-center gap-2 mb-6 text-stone-500">
                   <Activity className="w-5 h-5" />
                   <span className="font-bold uppercase tracking-widest text-xs">Live Feed</span>
-                </div>
-                <div className="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+               </div>
+               <div className="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                    <div className="text-sm text-stone-500 italic">No recent activity</div>
-                </div>
+               </div>
             </div>
 
           </div>
@@ -167,11 +173,10 @@ export default function DashboardPage() {
   );
 }
 
-// --- UPDATED HELPER COMPONENT WITH LINK ---
+// --- HELPER COMPONENT (UNCHANGED) ---
 function WorkspaceCard({ id, title, type, image, members, updated }: any) {
   return (
-    // Wrap the card in a Link to the dynamic route
-    <Link href={`/dashboard/workspace/${id}`}>
+    <Link href={`/dashboard/${id}`}> {/* Fixed path to match your file structure */}
       <div className="group bg-white p-3 pb-6 rounded-[40px] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 cursor-pointer border border-transparent hover:border-stone-100 h-full">
         <div className="aspect-4/3 rounded-4xl overflow-hidden relative mb-5">
           <img src={image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={title} />
@@ -185,10 +190,10 @@ function WorkspaceCard({ id, title, type, image, members, updated }: any) {
             <h3 className="text-2xl font-medium text-stone-900 truncate pr-2">{title}</h3>
             <span className="px-3 py-1 bg-stone-100 rounded-full text-xs font-bold uppercase tracking-wider text-stone-500 shrink-0">{type}</span>
           </div>
-          <p className="text-stone-400 text-sm mb-4">Updated {updated}</p>
+          <p className="text-stone-400 text-sm mb-4">Created {updated}</p>
           <div className="flex items-center gap-2 text-sm font-medium text-stone-500">
             <Users className="w-4 h-4" />
-            <span>{members} Members</span>
+            <span>{members} Member{members !== 1 && 's'}</span>
           </div>
         </div>
       </div>
