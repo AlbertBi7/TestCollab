@@ -24,7 +24,7 @@ export function Navbar() {
 
         {/* Auth Buttons */}
         <div className="flex items-center gap-4">
-          <Link href="/login" className="hidden sm:block text-sm font-bold text-stone-900 hover:text-stone-600 transition-colors">
+          <Link href="/login" className="text-sm font-bold text-stone-900 hover:text-stone-600 transition-colors">
             Login
           </Link>
           <Link href="/signup" className="px-6 py-2.5 rounded-full bg-stone-900 text-white text-sm font-bold hover:bg-lime-500 hover:text-stone-900 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5">

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { Navbar } from "@/components/landing/NavBar";
 import { Hero } from "@/components/landing/Hero";
 import { Features } from "@/components/landing/Features";
+import { Navbar } from "@/components/landing/NavBar";
 import Link from "next/link";
 import { Infinity } from "lucide-react";
 

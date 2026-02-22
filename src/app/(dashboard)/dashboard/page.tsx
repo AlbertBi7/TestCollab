@@ -176,7 +176,7 @@ export default function DashboardPage() {
 // --- HELPER COMPONENT (UNCHANGED) ---
 function WorkspaceCard({ id, title, type, image, members, updated }: any) {
   return (
-    <Link href={`/dashboard/${id}`}> {/* Fixed path to match your file structure */}
+    <Link href={`/dashboard/workspace/${id}`}> {/* Fixed path to match your file structure */}
       <div className="group bg-white p-3 pb-6 rounded-[40px] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 cursor-pointer border border-transparent hover:border-stone-100 h-full">
         <div className="aspect-4/3 rounded-4xl overflow-hidden relative mb-5">
           <img src={image} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={title} />

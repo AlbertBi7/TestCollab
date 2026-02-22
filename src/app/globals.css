@@ -42,6 +42,25 @@
     opacity: 1;
     transform: translateY(0);
   }
+
+  /* Hover Lift Effect for Cards */
+  .hover-lift {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1);
+  }
+
+  /* View Transitions */
+  .view-hidden {
+    display: none;
+    opacity: 0;
+  }
+  .view-active {
+    display: block;
+    animation: fadeIn 0.4s ease forwards;
+  }
 }
 
 /* Custom Scrollbar */
@@ -49,3 +68,24 @@
 ::-webkit-scrollbar-track { background: #F2F2F0; }
 ::-webkit-scrollbar-thumb { background: #e5e5e4; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #d6d3d1; }
+
+/* Smooth scroll & selection */
+html { scroll-behavior: smooth; }
+::selection { background-color: #d9f99d; color: #365314; }
+
+/* Float-in Animation */
+@layer utilities {
+  .float-in {
+    animation: floatIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  
+  .delay-1 { animation-delay: 0.1s; }
+  .delay-2 { animation-delay: 0.2s; }
+  .delay-3 { animation-delay: 0.3s; }
+}
+
+@keyframes floatIn {
+  to { opacity: 1; transform: translateY(0); }
+}

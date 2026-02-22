@@ -22,15 +22,19 @@ export function LoginForm() {
 
     try {
       // SUPABASE LOGIN LOGIC
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(), // Trim spaces!
         password,
       });
 
       if (error) throw error;
 
-      // Success
-      router.push("/dashboard");
+      // Success - redirect to user's specific dashboard
+      if (data?.user) {
+        router.push(`/dashboard/${data.user.id}`);
+      } else {
+        router.push("/dashboard");
+      }
 
     } catch (err: any) {
       console.error(err);

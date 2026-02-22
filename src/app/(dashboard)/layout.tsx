@@ -1,35 +1,171 @@
-import { Sidebar } from "@/components/navigation/Sidebar"; // Using your existing component
-import { UserNav } from "@/components/navigation/UserNav"; // Using your existing component
+"use client";
+
+import { useState } from "react";
+import { Infinity, Search, Settings, LogOut, User } from "lucide-react";
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, signOut } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // Determine active tab based on current path
+  const isExplorePage = pathname === "/explore" || pathname?.startsWith("/profile/");
+  const isDashboardPage = !isExplorePage;
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log("Profile clicked, user:", user);
+    console.log("User ID:", user?.id);
+    setIsDropdownOpen(false);
+    if (user?.id) {
+      const profileUrl = `/dashboard/${user.id}`;
+      console.log("Navigating to:", profileUrl);
+      router.push(profileUrl);
+    } else {
+      console.error("User ID not available");
+    }
+  };
+
+  const handleSettingsClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsDropdownOpen(false);
+    router.push("/settings");
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* 1. The Sidebar (Left) */}
-      <aside className="hidden w-64 border-r bg-white md:block">
-        <Sidebar />
-      </aside>
-
-      {/* 2. Main Content Area (Right) */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Header for Mobile & User Profile */}
-        <header className="flex h-16 items-center justify-between border-b bg-white px-6">
-          <div className="font-bold text-xl md:hidden">Collabio</div>
+    <div className="min-h-screen bg-[#F2F2F0] antialiased overflow-x-hidden pb-12">
+      {/* Floating Glass Navbar */}
+      <div className="fixed top-8 left-0 right-0 flex justify-center z-50 pointer-events-none px-4">
+        <nav className="pointer-events-auto bg-white/70 backdrop-blur-xl border border-white/50 rounded-full pl-6 pr-2 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.04)] flex items-center justify-between gap-12 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] transition-all duration-500">
           
-          {/* Push UserNav to the far right */}
-          <div className="ml-auto flex items-center gap-4">
-            <UserNav />
-          </div>
-        </header>
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 bg-[#1c1917] rounded-full flex items-center justify-center text-[#d9f99d] group-hover:rotate-180 transition-transform duration-700">
+              <Infinity className="w-5 h-5" />
+            </div>
+            <span className="font-bold text-xl tracking-tight hidden sm:block">Collabio</span>
+          </Link>
 
-        {/* The Page Content (e.g., Dashboard, Workspace) */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
+          {/* Navigation Tabs */}
+          <div className="hidden md:flex items-center bg-[#1c1917]/5 rounded-full px-1 py-1">
+            <Link 
+              href={user ? `/dashboard/${user.id}` : "/dashboard"} 
+              className={`px-5 py-2 rounded-full text-sm transition-all ${
+                isDashboardPage 
+                  ? "bg-white shadow-sm font-bold text-stone-900" 
+                  : "font-medium text-stone-500 hover:text-stone-900"
+              }`}
+            >
+              Dashboard
+            </Link>
+            <Link 
+              href="/explore" 
+              className={`px-5 py-2 rounded-full text-sm transition-all ${
+                isExplorePage 
+                  ? "bg-white shadow-sm font-bold text-stone-900" 
+                  : "font-medium text-stone-500 hover:text-stone-900"
+              }`}
+            >
+              Explore
+            </Link>
+          </div>
+
+          {/* Search & Avatar */}
+          <div className="flex items-center gap-2">
+            <button className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-stone-400 hover:text-stone-900 hover:bg-stone-50 transition-colors">
+              <Search className="w-5 h-5" />
+            </button>
+            
+            {/* Profile Dropdown */}
+            <div className="relative">
+              <div 
+                className="w-10 h-10 rounded-full overflow-hidden border-2 border-white ring-2 ring-stone-100 cursor-pointer hover:ring-lime-300 transition-all"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              >
+                <img 
+                  src={user?.avatar_url || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=100"} 
+                  className="w-full h-full object-cover"
+                  alt="User"
+                />
+              </div>
+
+              {/* Dropdown Menu */}
+              {isDropdownOpen && (
+                <>
+                  {/* Backdrop to close dropdown */}
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setIsDropdownOpen(false)}
+                  />
+                  
+                  {/* Dropdown Content */}
+                  <div 
+                    className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-stone-100 py-2 z-50 overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* User Info */}
+                    <div className="px-4 py-3 border-b border-stone-100">
+                      <p className="text-sm font-semibold text-stone-900">{user?.display_name || "User"}</p>
+                      <p className="text-xs text-stone-500 truncate">{user?.email}</p>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <button 
+                        type="button"
+                        onClick={handleProfileClick}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors w-full text-left"
+                      >
+                        <User className="w-4 h-4" />
+                        Profile
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={handleSettingsClick}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 transition-colors w-full text-left"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Settings
+                      </button>
+                    </div>
+
+                    {/* Logout */}
+                    <div className="border-t border-stone-100 pt-2">
+                      <button 
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          setIsDropdownOpen(false);
+                          await signOut();
+                        }}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </nav>
       </div>
+
+      {/* Main Content */}
+      <main className="max-w-[1400px] mx-auto px-6 pt-40">
+        {children}
+      </main>
     </div>
   );
 }
