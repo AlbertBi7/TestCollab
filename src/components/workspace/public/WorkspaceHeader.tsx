@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, Heart, Share2, Copy } from "lucide-react";
+import { ArrowLeft, Eye, Heart, Share2, Copy, Pencil, UserPlus } from "lucide-react";
 
 interface WorkspaceHeaderProps {
   id: string;
@@ -24,6 +24,9 @@ interface WorkspaceHeaderProps {
   onDuplicate?: () => void;
   onFollow?: () => void;
   isFollowing?: boolean;
+  isOwner?: boolean;
+  onEdit?: () => void;
+  onInvite?: () => void;
 }
 
 export function WorkspaceHeader({
@@ -42,6 +45,9 @@ export function WorkspaceHeader({
   onDuplicate,
   onFollow,
   isFollowing = false,
+  isOwner = false,
+  onEdit,
+  onInvite,
 }: WorkspaceHeaderProps) {
   const router = useRouter();
   const [liked, setLiked] = useState(isLiked);
@@ -141,37 +147,67 @@ export function WorkspaceHeader({
 
             {/* Right Side - Actions */}
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-              {/* Like Button */}
-              <button
-                onClick={handleLike}
-                className={`w-full sm:w-14 h-14 rounded-full border-2 flex items-center justify-center transition-colors group ${
-                  liked
-                    ? "bg-red-50 border-red-200 text-red-500"
-                    : "border-stone-200 text-stone-600 hover:bg-stone-50"
-                }`}
-              >
-                <Heart
-                  className={`w-6 h-6 transition-colors ${
-                    liked ? "fill-red-500" : "group-hover:text-red-500"
-                  }`}
-                />
-              </button>
+              {isOwner ? (
+                <>
+                  {/* Owner: Edit Button */}
+                  <button
+                    onClick={onEdit}
+                    className="w-full sm:w-14 h-14 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
+                  >
+                    <Pencil className="w-5 h-5" />
+                  </button>
 
-              {/* Share Button */}
-              <button
-                onClick={onShare}
-                className="w-full sm:w-14 h-14 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
-              >
-                <Share2 className="w-6 h-6" />
-              </button>
+                  {/* Owner: Share Button */}
+                  <button
+                    onClick={onShare}
+                    className="w-full sm:w-14 h-14 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
+                  >
+                    <Share2 className="w-6 h-6" />
+                  </button>
 
-              {/* Duplicate Button */}
-              <button
-                onClick={onDuplicate}
-                className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#1c1917] text-[#d9f99d] text-lg font-bold hover:bg-stone-800 transition-colors shadow-lg flex items-center justify-center gap-2 whitespace-nowrap"
-              >
-                <Copy className="w-5 h-5" /> Duplicate Space
-              </button>
+                  {/* Owner: Invite Button */}
+                  <button
+                    onClick={onInvite}
+                    className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#1c1917] text-white text-lg font-bold hover:bg-stone-800 transition-colors shadow-lg flex items-center justify-center gap-2 whitespace-nowrap"
+                  >
+                    <UserPlus className="w-5 h-5" /> Invite
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Visitor: Like Button */}
+                  <button
+                    onClick={handleLike}
+                    className={`w-full sm:w-14 h-14 rounded-full border-2 flex items-center justify-center transition-colors group ${
+                      liked
+                        ? "bg-red-50 border-red-200 text-red-500"
+                        : "border-stone-200 text-stone-600 hover:bg-stone-50"
+                    }`}
+                  >
+                    <Heart
+                      className={`w-6 h-6 transition-colors ${
+                        liked ? "fill-red-500" : "group-hover:text-red-500"
+                      }`}
+                    />
+                  </button>
+
+                  {/* Visitor: Share Button */}
+                  <button
+                    onClick={onShare}
+                    className="w-full sm:w-14 h-14 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
+                  >
+                    <Share2 className="w-6 h-6" />
+                  </button>
+
+                  {/* Visitor: Duplicate Button */}
+                  <button
+                    onClick={onDuplicate}
+                    className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#1c1917] text-[#d9f99d] text-lg font-bold hover:bg-stone-800 transition-colors shadow-lg flex items-center justify-center gap-2 whitespace-nowrap"
+                  >
+                    <Copy className="w-5 h-5" /> Duplicate Space
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

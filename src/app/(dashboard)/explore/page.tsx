@@ -162,11 +162,11 @@ export default function ExplorePage() {
         const { data: profilesData, error: profilesError } = await supabase
           .from("profiles")
           .select("profile_id, display_name, profile_avatar_url")
-          .limit(8);
+          .limit(12);
 
         if (profilesError) {
           console.error("Error fetching profiles:", profilesError);
-        } else if (profilesData) {
+        } else if (profilesData && profilesData.length > 0) {
           // Get workspace counts for each user
           const creatorsWithCounts = await Promise.all(
             profilesData.map(async (profile) => {
@@ -191,7 +191,7 @@ export default function ExplorePage() {
 
           // Filter to show users with at least one public workspace, or show all if none have any
           const filtered = creatorsWithCounts.filter(c => c.spacesCount > 0);
-          setFeaturedCreators(filtered.length > 0 ? filtered.slice(0, 4) : creatorsWithCounts.slice(0, 4));
+          setFeaturedCreators(filtered.length > 0 ? filtered.slice(0, 8) : creatorsWithCounts.slice(0, 8));
         }
       } catch (err) {
         console.error("Error fetching initial data:", err);
@@ -439,8 +439,8 @@ export default function ExplorePage() {
           </div>
 
           {initialLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map((i) => (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <div key={i} className="bg-white p-6 rounded-[40px] border border-stone-100 animate-pulse flex flex-col items-center">
                   <div className="w-20 h-20 rounded-full bg-stone-200 mb-4"></div>
                   <div className="h-5 bg-stone-200 rounded w-24 mb-2"></div>
@@ -454,14 +454,9 @@ export default function ExplorePage() {
               ))}
             </div>
           ) : featuredCreators.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {featuredCreators.map((creator, index) => (
-                <div
-                  key={creator.id}
-                  className={index === 3 ? "hidden lg:block" : ""}
-                >
-                  <CreatorCard {...creator} />
-                </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {featuredCreators.map((creator) => (
+                <CreatorCard key={creator.id} {...creator} />
               ))}
             </div>
           ) : (

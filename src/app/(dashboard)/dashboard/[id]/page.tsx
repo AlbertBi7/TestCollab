@@ -164,7 +164,7 @@ export default function UserDashboardPage({ params }: { params: Promise<{ id: st
         {workspaces.slice(0, 2).map((workspace, index) => (
           <Link
             key={workspace.workspace_id || `workspace-${index}`}
-            href={`/dashboard/workspace/${workspace.workspace_id}`}
+            href={`/workspace/${workspace.workspace_id}`}
             className="group bg-white p-3 pb-6 rounded-[40px] hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-500 cursor-pointer"
           >
             <div className="aspect-[4/3] rounded-[32px] overflow-hidden relative mb-5">

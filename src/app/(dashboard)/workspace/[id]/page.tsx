@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ArrowDownUp, LayoutGrid, List } from "lucide-react";
+import { Search, ArrowDownUp, LayoutGrid, List, Plus, Pencil, UserPlus, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -11,6 +11,8 @@ import {
   WorkspaceSidebar,
 } from "@/components/workspace/public";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
+import { AddReferenceModal } from "@/components/workspace/AddReferenceModal";
+import { WorkspaceChat } from "@/components/workspace/chat";
 
 interface WorkspaceData {
   workspace_id: string;
@@ -125,6 +127,16 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
+  // Owner-only state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Chat state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isMember, setIsMember] = useState(false);
+
+  // Check if current user is the owner
+  const isOwner = user?.id === workspace?.workspace_owner_id;
+
   // Unwrap params
   useEffect(() => {
     const unwrapParams = async () => {
@@ -156,13 +168,31 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
           return;
         }
 
-        // Check if workspace is public
-        if (workspaceData.workspace_visibility !== "public") {
+        // Check if workspace is private and user is not the owner
+        const isUserOwner = user?.id === workspaceData.workspace_owner_id;
+        if (workspaceData.workspace_visibility !== "public" && !isUserOwner) {
           router.push("/explore");
           return;
         }
 
         setWorkspace(workspaceData);
+
+        // Check if user is a member (owner or collaborator)
+        if (user) {
+          if (user.id === workspaceData.workspace_owner_id) {
+            setIsMember(true);
+          } else {
+            // Check workspace_members table
+            const { data: memberData } = await supabase
+              .from("workspace_members")
+              .select("workspace_id")
+              .eq("workspace_id", workspaceId)
+              .eq("profile_id", user.id)
+              .maybeSingle();
+            
+            setIsMember(!!memberData);
+          }
+        }
 
         // Fetch owner profile
         const { data: profileData } = await supabase
@@ -224,7 +254,7 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
     };
 
     fetchWorkspace();
-  }, [workspaceId, router]);
+  }, [workspaceId, router, user]);
 
   // Filter references
   const filteredReferences = references.filter((ref) => {
@@ -282,6 +312,13 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
     setSearchQuery(tag);
   }, []);
 
+  // Owner-only: Handle adding new reference (optimistic update)
+  const handleAddReference = useCallback((newFile: any) => {
+    setReferences((prev) => [newFile, ...prev]);
+    showToast("Reference Added Successfully ✨");
+    setIsAddModalOpen(false);
+  }, [showToast]);
+
   const getCategoryEmoji = (category: string) => {
     const emojiMap: Record<string, string> = {
       Design: "🎨",
@@ -308,6 +345,15 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
 
   return (
     <div className="max-w-[1600px] mx-auto pb-20">
+      {/* Owner-only: Add Reference Modal */}
+      {isOwner && (
+        <AddReferenceModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          workspaceId={workspace.workspace_id}
+        />
+      )}
+
       {/* Header */}
       <WorkspaceHeader
         id={workspace.workspace_id}
@@ -322,6 +368,7 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
         onLike={handleLike}
         onShare={handleShare}
         onDuplicate={handleDuplicate}
+        isOwner={isOwner}
       />
 
       {/* Main Content */}
@@ -408,10 +455,48 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
                   ? `No references found for "${searchQuery}"`
                   : "No references in this collection yet."}
               </p>
+              {isOwner && (
+                <button
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="mt-4 px-6 py-3 bg-[#1c1917] text-white rounded-full font-medium hover:bg-stone-800 transition-colors"
+                >
+                  Add your first reference
+                </button>
+              )}
             </div>
           )}
         </main>
       </div>
+
+      {/* Owner-only: Floating Add Button */}
+      {isOwner && (
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-tr from-lime-400 to-green-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-lime-500/40 hover:scale-110 hover:rotate-90 transition-all duration-500 z-30"
+        >
+          <Plus className="w-8 h-8" />
+        </button>
+      )}
+
+      {/* Chat Button - Only for members */}
+      {isMember && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className={`fixed bottom-8 ${isOwner ? 'right-28' : 'right-8'} w-14 h-14 bg-[#1c1917] rounded-full flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all duration-300 z-30`}
+        >
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Chat Panel - Only for members */}
+      {isMember && workspaceId && (
+        <WorkspaceChat
+          workspaceId={workspaceId}
+          currentUserId={user?.id}
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+        />
+      )}
     </div>
   );
 }

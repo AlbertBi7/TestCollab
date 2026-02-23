@@ -34,12 +34,12 @@ interface ProfileStats {
 
 interface PublicWorkspace {
   workspace_id: string;
-  workspace_name: string;
+  workspace_title: string;
   workspace_description: string;
   workspace_cover_image: string | null;
   workspace_category: string | null;
   workspace_likes: number;
-  workspace_updated_at: string;
+  workspace_created_at: string;
 }
 
 // Mock data for initial display
@@ -61,34 +61,43 @@ const mockStats: ProfileStats = {
   refsSavedCount: 12000,
 };
 
-const mockWorkspaces = [
+const mockWorkspaces: PublicWorkspace[] = [
   {
     workspace_id: "w1",
-    workspace_name: "UI/UX Inspiration 2024",
+    workspace_title: "UI/UX Inspiration 2024",
     workspace_description: "A curated collection of the best landing pages.",
     workspace_cover_image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
     workspace_category: "Design",
     workspace_likes: 1200,
-    workspace_updated_at: "2 days ago",
+    workspace_created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
     workspace_id: "w2",
-    workspace_name: "Logofolio Vol. 2",
+    workspace_title: "Logofolio Vol. 2",
     workspace_description: "References for minimalist logomarks.",
     workspace_cover_image: "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800",
     workspace_category: "Branding",
     workspace_likes: 843,
-    workspace_updated_at: "1 week ago",
+    workspace_created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
     workspace_id: "w3",
-    workspace_name: "iOS App Patterns",
+    workspace_title: "iOS App Patterns",
     workspace_description: "Onboarding flows and micro-interactions.",
     workspace_cover_image: "https://images.unsplash.com/photo-1558655146-d09347e92766?w=800",
     workspace_category: "Mobile",
     workspace_likes: 512,
-    workspace_updated_at: "2 weeks ago",
+    workspace_created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
   },
+];
+
+// Placeholder images for workspaces without covers
+const placeholderImages = [
+  "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
+  "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800",
+  "https://images.unsplash.com/photo-1614680376593-902f74cf0d41?w=800",
+  "https://images.unsplash.com/photo-1558655146-d09347e92766?w=800",
+  "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?w=800",
 ];
 
 export default function ProfilePage({
@@ -138,12 +147,12 @@ export default function ProfilePage({
             id: profileData.profile_id,
             display_name: profileData.display_name || "Unknown User",
             username: profileData.display_name?.toLowerCase().replace(/\s+/g, '') || "user",
-            bio: profileData.bio || "",
+            bio: profileData.profile_bio || "",
             avatar_url: profileData.profile_avatar_url || mockProfile.avatar_url,
-            cover_url: profileData.cover_url || "",
-            website_url: profileData.website_url || "",
-            twitter_url: profileData.twitter_url || "",
-            is_verified: profileData.is_verified || false,
+            cover_url: profileData.profile_cover_url || "",
+            website_url: profileData.profile_website_url || "",
+            twitter_url: profileData.profile_twitter_url || "",
+            is_verified: profileData.profile_is_verified || false,
           });
 
           // Fetch public workspaces for this user
@@ -159,12 +168,18 @@ export default function ProfilePage({
             setWorkspaces(workspacesData);
           }
 
+          // Count total references uploaded by this user
+          const { count: refsCount } = await supabase
+            .from("references")
+            .select("*", { count: "exact", head: true })
+            .eq("uploaded_by_profile_id", profileId);
+
           // Calculate stats
           const workspacesCount = workspacesData?.length || 0;
           setStats({
             spacesCount: workspacesCount,
             followersCount: 0, // Would need a followers table
-            refsSavedCount: 0, // Would need to aggregate references
+            refsSavedCount: refsCount || 0,
           });
         }
       } catch (err) {
@@ -386,21 +401,21 @@ export default function ProfilePage({
         {/* Workspaces Grid */}
         {activeTab === "workspaces" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {workspaces.map((workspace) => (
+            {workspaces.map((workspace, index) => (
               <WorkspaceCard
                 key={workspace.workspace_id}
                 id={workspace.workspace_id}
-                title={workspace.workspace_name}
+                title={workspace.workspace_title}
                 description={workspace.workspace_description || ""}
                 coverImage={
                   workspace.workspace_cover_image ||
-                  "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
+                  placeholderImages[index % placeholderImages.length]
                 }
                 category={workspace.workspace_category || "General"}
                 categoryEmoji={getCategoryEmoji(workspace.workspace_category)}
                 likes={workspace.workspace_likes || 0}
                 showAuthor={false}
-                updatedAt={formatDate(workspace.workspace_updated_at)}
+                updatedAt={formatDate(workspace.workspace_created_at)}
               />
             ))}
           </div>

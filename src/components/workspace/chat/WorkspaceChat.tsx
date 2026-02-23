@@ -1,0 +1,387 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { X, MessageCircle, Users } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { MessageList } from "./MessageList";
+import { MessageInput } from "./MessageInput";
+
+interface Message {
+  message_id: string;
+  sender_profile_id: string;
+  message_content: string;
+  message_created_at: string;
+  sender?: {
+    display_name: string;
+    profile_avatar_url: string;
+  };
+}
+
+interface Member {
+  profile_id: string;
+  display_name: string;
+  profile_avatar_url: string;
+  member_role: string;
+}
+
+interface WorkspaceChatProps {
+  workspaceId: string;
+  currentUserId: string | undefined;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function WorkspaceChat({
+  workspaceId,
+  currentUserId,
+  isOpen,
+  onClose,
+}: WorkspaceChatProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isMember, setIsMember] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chat" | "members">("chat");
+
+  // Check if user is a member of this workspace
+  const checkMembership = useCallback(async () => {
+    if (!currentUserId || !workspaceId) {
+      setIsMember(false);
+      return;
+    }
+
+    // Check if user is owner
+    const { data: workspace } = await supabase
+      .from("workspaces")
+      .select("workspace_owner_id")
+      .eq("workspace_id", workspaceId)
+      .single();
+
+    if (workspace?.workspace_owner_id === currentUserId) {
+      setIsMember(true);
+      return;
+    }
+
+    // Check if user is a member
+    const { data: membership } = await supabase
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("workspace_id", workspaceId)
+      .eq("profile_id", currentUserId)
+      .maybeSingle();
+
+    setIsMember(!!membership);
+  }, [currentUserId, workspaceId]);
+
+  // Fetch messages
+  const fetchMessages = useCallback(async () => {
+    if (!workspaceId) return;
+
+    setLoading(true);
+    try {
+      const { data: messagesData, error } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("message_created_at", { ascending: true })
+        .limit(100);
+
+      if (error) throw error;
+
+      if (messagesData && messagesData.length > 0) {
+        // Fetch sender profiles
+        const senderIds = [...new Set(messagesData.map((m) => m.sender_profile_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("profile_id, display_name, profile_avatar_url")
+          .in("profile_id", senderIds);
+
+        const profileMap = new Map(
+          profiles?.map((p) => [p.profile_id, p]) || []
+        );
+
+        const messagesWithSenders = messagesData.map((msg) => ({
+          ...msg,
+          sender: profileMap.get(msg.sender_profile_id)
+            ? {
+                display_name: profileMap.get(msg.sender_profile_id)?.display_name || "Unknown",
+                profile_avatar_url: profileMap.get(msg.sender_profile_id)?.profile_avatar_url || "",
+              }
+            : undefined,
+        }));
+
+        setMessages(messagesWithSenders);
+      } else {
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error("Error fetching messages:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  // Fetch workspace members
+  const fetchMembers = useCallback(async () => {
+    if (!workspaceId) return;
+
+    try {
+      // Get owner
+      const { data: workspace } = await supabase
+        .from("workspaces")
+        .select("workspace_owner_id")
+        .eq("workspace_id", workspaceId)
+        .single();
+
+      // Get members
+      const { data: membersData } = await supabase
+        .from("workspace_members")
+        .select("profile_id, member_role")
+        .eq("workspace_id", workspaceId);
+
+      // Get all profile IDs (owner + members)
+      const profileIds = [
+        workspace?.workspace_owner_id,
+        ...(membersData?.map((m) => m.profile_id) || []),
+      ].filter(Boolean);
+
+      if (profileIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("profile_id, display_name, profile_avatar_url")
+          .in("profile_id", profileIds);
+
+        const memberRoleMap = new Map(
+          membersData?.map((m) => [m.profile_id, m.member_role]) || []
+        );
+
+        const membersWithProfiles: Member[] =
+          profiles?.map((p) => ({
+            profile_id: p.profile_id,
+            display_name: p.display_name || "Unknown User",
+            profile_avatar_url: p.profile_avatar_url || "",
+            member_role:
+              p.profile_id === workspace?.workspace_owner_id
+                ? "owner"
+                : memberRoleMap.get(p.profile_id) || "member",
+          })) || [];
+
+        // Sort: owner first, then by name
+        membersWithProfiles.sort((a, b) => {
+          if (a.member_role === "owner") return -1;
+          if (b.member_role === "owner") return 1;
+          return a.display_name.localeCompare(b.display_name);
+        });
+
+        setMembers(membersWithProfiles);
+      }
+    } catch (err) {
+      console.error("Error fetching members:", err);
+    }
+  }, [workspaceId]);
+
+  // Send message
+  const handleSendMessage = async (content: string) => {
+    if (!currentUserId || !workspaceId || !isMember) return;
+
+    try {
+      const { data: newMessage, error } = await supabase
+        .from("messages")
+        .insert({
+          workspace_id: workspaceId,
+          sender_profile_id: currentUserId,
+          message_content: content,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Optimistically add message to list
+      if (newMessage) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("display_name, profile_avatar_url")
+          .eq("profile_id", currentUserId)
+          .single();
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            ...newMessage,
+            sender: profile
+              ? {
+                  display_name: profile.display_name || "You",
+                  profile_avatar_url: profile.profile_avatar_url || "",
+                }
+              : undefined,
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error("Error sending message:", err);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    if (isOpen && workspaceId) {
+      checkMembership();
+      fetchMessages();
+      fetchMembers();
+    }
+  }, [isOpen, workspaceId, checkMembership, fetchMessages, fetchMembers]);
+
+  // Real-time subscription
+  useEffect(() => {
+    if (!isOpen || !workspaceId) return;
+
+    const channel = supabase
+      .channel(`workspace-chat-${workspaceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `workspace_id=eq.${workspaceId}`,
+        },
+        async (payload) => {
+          const newMessage = payload.new as Message;
+
+          // Don't add if it's from current user (already added optimistically)
+          if (newMessage.sender_profile_id === currentUserId) return;
+
+          // Fetch sender profile
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("display_name, profile_avatar_url")
+            .eq("profile_id", newMessage.sender_profile_id)
+            .single();
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              ...newMessage,
+              sender: profile
+                ? {
+                    display_name: profile.display_name || "Unknown",
+                    profile_avatar_url: profile.profile_avatar_url || "",
+                  }
+                : undefined,
+            },
+          ]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, workspaceId, currentUserId]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-300">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setActiveTab("chat")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              activeTab === "chat"
+                ? "bg-[#1c1917] text-white"
+                : "text-stone-500 hover:bg-stone-100"
+            }`}
+          >
+            <MessageCircle className="w-4 h-4" />
+            Chat
+          </button>
+          <button
+            onClick={() => setActiveTab("members")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              activeTab === "members"
+                ? "bg-[#1c1917] text-white"
+                : "text-stone-500 hover:bg-stone-100"
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Members ({members.length})
+          </button>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-2 hover:bg-stone-100 rounded-full transition-colors"
+        >
+          <X className="w-5 h-5 text-stone-500" />
+        </button>
+      </div>
+
+      {/* Content */}
+      {activeTab === "chat" ? (
+        <>
+          <MessageList
+            messages={messages}
+            currentUserId={currentUserId}
+            loading={loading}
+          />
+          <MessageInput
+            onSend={handleSendMessage}
+            disabled={!isMember || !currentUserId}
+            placeholder={
+              !currentUserId
+                ? "Sign in to chat..."
+                : !isMember
+                ? "Only members can chat..."
+                : "Type a message..."
+            }
+          />
+        </>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-3">
+            {members.map((member) => (
+              <div
+                key={member.profile_id}
+                className="flex items-center gap-3 p-3 rounded-2xl hover:bg-stone-50 transition-colors"
+              >
+                <img
+                  src={
+                    member.profile_avatar_url ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.profile_id}`
+                  }
+                  alt={member.display_name}
+                  className="w-10 h-10 rounded-full"
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-stone-900">
+                    {member.display_name}
+                    {member.profile_id === currentUserId && (
+                      <span className="text-stone-400 font-normal"> (you)</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-stone-400 capitalize">
+                    {member.member_role}
+                  </p>
+                </div>
+                {member.member_role === "owner" && (
+                  <span className="px-2 py-1 text-xs font-bold bg-lime-100 text-lime-700 rounded-full">
+                    Owner
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {members.length === 0 && (
+            <div className="text-center py-8 text-stone-400">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No members yet</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
