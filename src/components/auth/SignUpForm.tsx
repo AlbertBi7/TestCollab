@@ -5,7 +5,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { User, Mail, Lock, Eye, EyeOff, ShieldCheck, Check, CheckCircle2 } from "lucide-react";
+import { User, Mail, Lock, Eye, EyeOff, ShieldCheck, Check, CheckCircle2, Github } from "lucide-react";
 
 export function SignUpForm() {
   const router = useRouter();
@@ -42,6 +42,21 @@ export function SignUpForm() {
     if (strength <= 2) return "Fair";
     if (strength <= 3) return "Good";
     return "Strong";
+  };
+
+  const handleSocialSignUp = async (provider: 'google' | 'github') => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      console.error(err);
+      setError(`Failed to sign up with ${provider}.`);
+    }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -163,8 +178,27 @@ export function SignUpForm() {
 
       <div className="relative flex items-center py-6">
         <div className="grow border-t border-stone-200"></div>
-        <span className="shrink-0 mx-4 text-stone-400 text-xs font-bold uppercase">Or</span>
+        <span className="shrink-0 mx-4 text-stone-400 text-xs font-bold uppercase">Or continue with</span>
         <div className="grow border-t border-stone-200"></div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <button 
+          type="button"
+          onClick={() => handleSocialSignUp('google')}
+          className="flex items-center justify-center gap-2 py-3 border-2 border-stone-100 rounded-xl hover:bg-white hover:border-stone-200 transition-all font-medium text-stone-600"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="currentColor" d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/></svg>
+          Google
+        </button>
+        <button 
+          type="button"
+          onClick={() => handleSocialSignUp('github')}
+          className="flex items-center justify-center gap-2 py-3 border-2 border-stone-100 rounded-xl hover:bg-white hover:border-stone-200 transition-all font-medium text-stone-600"
+        >
+          <Github className="w-5 h-5" />
+          GitHub
+        </button>
       </div>
 
       <p className="text-center text-stone-500 font-medium">
