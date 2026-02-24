@@ -72,10 +72,10 @@ export function WorkspaceHeader({
     <>
       {/* Back Button */}
       <button
-        onClick={() => router.push("/explore")}
+        onClick={() => router.back()}
         className="flex items-center gap-2 text-stone-500 font-bold hover:text-stone-900 transition-colors mb-6 ml-2 float-in"
       >
-        <ArrowLeft className="w-4 h-4" /> Back to Explore
+        <ArrowLeft className="w-4 h-4" /> {isOwner ? "Back to Dashboard" : "Back to Explore"}
       </button>
 
       {/* Header */}

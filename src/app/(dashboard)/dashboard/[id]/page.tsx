@@ -169,9 +169,9 @@ export default function UserDashboardPage({ params }: { params: Promise<{ id: st
           >
             <div className="aspect-[4/3] rounded-[32px] overflow-hidden relative mb-5">
               <img
-                src={workspace.cover_image || placeholderImages[index % placeholderImages.length]}
+                src={workspace.workspace_cover_image || placeholderImages[index % placeholderImages.length]}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                alt={workspace.workspace_name}
+                alt={workspace.workspace_title}
               />
               <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors"></div>
               <button className="absolute top-4 right-4 w-10 h-10 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:text-black">
@@ -180,9 +180,9 @@ export default function UserDashboardPage({ params }: { params: Promise<{ id: st
             </div>
             <div className="px-3">
               <div className="flex justify-between items-center mb-2">
-                <h3 className="text-2xl font-medium text-stone-900">{workspace.workspace_name}</h3>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${workspace.is_public ? 'bg-lime-100 text-lime-700' : 'bg-stone-100 text-stone-500'}`}>
-                  {workspace.is_public ? 'Public' : 'Private'}
+                <h3 className="text-2xl font-medium text-stone-900">{workspace.workspace_title}</h3>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${workspace.workspace_visibility === 'public' ? 'bg-lime-100 text-lime-700' : 'bg-stone-100 text-stone-500'}`}>
+                  {workspace.workspace_visibility === 'public' ? 'Public' : 'Private'}
                 </span>
               </div>
               <p className="text-stone-400 text-sm mb-4">

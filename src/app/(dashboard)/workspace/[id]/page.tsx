@@ -111,7 +111,7 @@ const mockTags = ["minimal", "darkmode", "fintech", "gradients"];
 
 function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
 
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -148,7 +148,7 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
 
   // Fetch workspace data
   useEffect(() => {
-    if (!workspaceId) return;
+    if (!workspaceId || authLoading) return;
 
     const fetchWorkspace = async () => {
       setLoading(true);
@@ -254,7 +254,7 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
     };
 
     fetchWorkspace();
-  }, [workspaceId, router, user]);
+  }, [workspaceId, router, user, authLoading]);
 
   // Filter references
   const filteredReferences = references.filter((ref) => {
@@ -332,7 +332,7 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
     return emojiMap[category] || "📁";
   };
 
-  if (loading || !workspace) {
+  if (loading || authLoading || !workspace) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="animate-pulse flex flex-col items-center">

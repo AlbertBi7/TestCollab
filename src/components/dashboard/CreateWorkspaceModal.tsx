@@ -35,15 +35,13 @@ export function CreateWorkspaceModal({ isOpen, onClose, setWorkspaces }: CreateW
           workspace_title: title,
           workspace_description: description,
           workspace_visibility: visibility,
-          // 'workspace_id' and 'created_at' are generated automatically by DB
         })
-        .select() // <--- Important: Return the inserted row
+        .select()
         .single();
 
       if (error) throw error;
 
-      // 2. Update Parent State (Optimistic UI)
-      // Now 'data' contains 'workspace_id', so the key prop in Dashboard won't fail!
+      // 2. Update Parent State
       setWorkspaces((prev) => [data, ...prev]);
 
       // 3. Reset and Close
