@@ -90,7 +90,8 @@ export function useAuth() {
       } else {
         console.log("User signed out or no session available.");
         setUser(null);
-        if (_event === 'SIGNED_OUT') router.push('/login');
+        // Only redirect automatically on session timeout, not on manual signOut
+        // (signOut function handles its own redirect)
       }
       setLoading(false);
     });
@@ -99,8 +100,17 @@ export function useAuth() {
   }, [router]);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
+    try {
+      setUser(null); // Clear user immediately for instant UI feedback
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Sign out error:", error);
+      }
+      router.push("/login");
+    } catch (error) {
+      console.error("Sign out error:", error);
+      router.push("/login"); // Still redirect even if error
+    }
   };
 
   return { user, loading, signOut };

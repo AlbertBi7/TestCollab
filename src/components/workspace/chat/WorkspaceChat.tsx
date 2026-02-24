@@ -42,6 +42,8 @@ export function WorkspaceChat({
   const [loading, setLoading] = useState(true);
   const [isMember, setIsMember] = useState(false);
   const [activeTab, setActiveTab] = useState<"chat" | "members">("chat");
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   // Check if user is a member of this workspace
   const checkMembership = useCallback(async () => {
@@ -182,8 +184,23 @@ export function WorkspaceChat({
 
   // Send message
   const handleSendMessage = async (content: string) => {
-    if (!currentUserId || !workspaceId || !isMember) return;
+    setSendError(null);
+    
+    if (!currentUserId) {
+      setSendError("Please sign in to send messages");
+      return;
+    }
+    if (!workspaceId) {
+      setSendError("Workspace not found");
+      return;
+    }
+    if (!isMember) {
+      setSendError("Only workspace members can send messages");
+      return;
+    }
 
+    setSending(true);
+    
     try {
       const { data: newMessage, error } = await supabase
         .from("messages")
@@ -195,7 +212,18 @@ export function WorkspaceChat({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error sending message:", error);
+        // Common error: table doesn't exist or RLS policy blocks
+        if (error.code === "42P01") {
+          setSendError("Chat is not configured. Please contact the administrator.");
+        } else if (error.code === "42501") {
+          setSendError("Permission denied. You may not have access to send messages.");
+        } else {
+          setSendError(error.message || "Failed to send message");
+        }
+        return;
+      }
 
       // Optimistically add message to list
       if (newMessage) {
@@ -218,8 +246,11 @@ export function WorkspaceChat({
           },
         ]);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error sending message:", err);
+      setSendError(err.message || "Failed to send message");
+    } finally {
+      setSending(false);
     }
   };
 
@@ -326,11 +357,25 @@ export function WorkspaceChat({
             currentUserId={currentUserId}
             loading={loading}
           />
+          {/* Error Display */}
+          {sendError && (
+            <div className="px-4 py-2 bg-red-50 border-t border-red-200">
+              <p className="text-sm text-red-600 text-center">{sendError}</p>
+              <button 
+                onClick={() => setSendError(null)}
+                className="text-xs text-red-400 hover:text-red-600 underline block mx-auto mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           <MessageInput
             onSend={handleSendMessage}
-            disabled={!isMember || !currentUserId}
+            disabled={!isMember || !currentUserId || sending}
             placeholder={
-              !currentUserId
+              sending
+                ? "Sending..."
+                : !currentUserId
                 ? "Sign in to chat..."
                 : !isMember
                 ? "Only members can chat..."

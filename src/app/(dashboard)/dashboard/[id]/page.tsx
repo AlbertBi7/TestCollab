@@ -41,14 +41,44 @@ export default function UserDashboardPage({ params }: { params: Promise<{ id: st
 
     const fetchWorkspaces = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch workspaces where user is owner
+        const { data: ownedWorkspaces, error: ownedError } = await supabase
           .from("workspaces")
           .select("*")
           .eq("workspace_owner_id", user.id)
           .order("workspace_created_at", { ascending: false });
 
-        if (error) throw error;
-        setWorkspaces(data || []);
+        if (ownedError) throw ownedError;
+
+        // Fetch workspaces where user is a member (but not owner)
+        const { data: memberWorkspaceIds, error: memberError } = await supabase
+          .from("workspace_members")
+          .select("workspace_id")
+          .eq("profile_id", user.id);
+
+        if (memberError) throw memberError;
+
+        let memberWorkspaces: any[] = [];
+        if (memberWorkspaceIds && memberWorkspaceIds.length > 0) {
+          const ids = memberWorkspaceIds.map(m => m.workspace_id);
+          const { data: sharedWorkspaces, error: sharedError } = await supabase
+            .from("workspaces")
+            .select("*")
+            .in("workspace_id", ids)
+            .neq("workspace_owner_id", user.id) // Exclude already fetched owned workspaces
+            .order("workspace_created_at", { ascending: false });
+
+          if (sharedError) throw sharedError;
+          memberWorkspaces = sharedWorkspaces || [];
+        }
+
+        // Combine owned and member workspaces
+        const allWorkspaces = [
+          ...(ownedWorkspaces || []),
+          ...memberWorkspaces,
+        ];
+
+        setWorkspaces(allWorkspaces);
       } catch (err) {
         console.error("Error loading workspaces:", err);
       } finally {
@@ -153,15 +183,17 @@ export default function UserDashboardPage({ params }: { params: Promise<{ id: st
 
       {/* Recent Flows Section */}
       <div className="flex items-center justify-between mb-8 px-2">
-        <h2 className="text-2xl font-medium text-stone-900">Recent Flows</h2>
-        <Link href="/explore" className="text-sm font-bold text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-widest">
-          View All
-        </Link>
+        <h2 className="text-2xl font-medium text-stone-900">Your Workspaces</h2>
+        <span className="text-sm font-bold text-stone-400 uppercase tracking-widest">
+          {workspaces.length} Total
+        </span>
       </div>
 
       {/* Workspace Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {workspaces.slice(0, 2).map((workspace, index) => (
+        {workspaces.map((workspace, index) => {
+          const isOwner = workspace.workspace_owner_id === user?.id;
+          return (
           <Link
             key={workspace.workspace_id || `workspace-${index}`}
             href={`/workspace/${workspace.workspace_id}`}
@@ -177,6 +209,10 @@ export default function UserDashboardPage({ params }: { params: Promise<{ id: st
               <button className="absolute top-4 right-4 w-10 h-10 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:text-black">
                 <ArrowUpRight className="w-5 h-5" />
               </button>
+              {/* Owner/Member Badge */}
+              <span className={`absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md ${isOwner ? 'bg-lime-500/80 text-white' : 'bg-white/80 text-stone-700'}`}>
+                {isOwner ? 'Owner' : 'Shared'}
+              </span>
             </div>
             <div className="px-3">
               <div className="flex justify-between items-center mb-2">
@@ -194,7 +230,8 @@ export default function UserDashboardPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
           </Link>
-        ))}
+          );
+        })}
 
         {/* Live Feed Card */}
         <div className="bg-stone-200/50 p-6 rounded-[40px] flex flex-col">
