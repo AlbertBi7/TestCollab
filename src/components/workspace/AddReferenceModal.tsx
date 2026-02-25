@@ -1,39 +1,87 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { X, Link as LinkIcon, Upload, Loader2 } from "lucide-react";
-import { db, auth, storage } from "@/lib/firebase"; // <--- Import storage
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"; // <--- Storage functions
+import { X, Link as LinkIcon, Upload, Loader2, FileAudio, FileVideo, FileText, Image } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { getFileTypeFromUrl, getFileTypeFromMime, ReferenceType } from "@/lib/fileType";
+
+const STORAGE_BUCKET = "Link-UpWorkpace";
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB limit
 
 interface AddReferenceModalProps {
   isOpen: boolean;
   onClose: () => void;
   workspaceId: string;
+  onReferenceAdded?: (reference: any) => void;
 }
 
-export function AddReferenceModal({ isOpen, onClose, workspaceId }: AddReferenceModalProps) {
+const TYPE_ICONS: Record<ReferenceType, React.ReactNode> = {
+  audio: <FileAudio className="w-6 h-6" />,
+  video: <FileVideo className="w-6 h-6" />,
+  document: <FileText className="w-6 h-6" />,
+  image: <Image className="w-6 h-6" />,
+};
+
+const TYPE_COLORS: Record<ReferenceType, string> = {
+  audio: "text-purple-500 bg-purple-50",
+  video: "text-rose-500 bg-rose-50",
+  document: "text-amber-500 bg-amber-50",
+  image: "text-sky-500 bg-sky-50",
+};
+
+export function AddReferenceModal({ isOpen, onClose, workspaceId, onReferenceAdded }: AddReferenceModalProps) {
   const [activeTab, setActiveTab] = useState<'link' | 'upload'>('upload');
   const [title, setTitle] = useState("");
   const [linkUrl, setLinkUrl] = useState(""); 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null); // Store the actual file object
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>(""); 
+  const [fileType, setFileType] = useState<ReferenceType>("image");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
   // Handle File Selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setSelectedFile(file); // Keep the file for uploading later
       
-      // Create a local preview just for the UI
-      const objectUrl = URL.createObjectURL(file);
-      setPreviewUrl(objectUrl);
-      setTitle(file.name);
+      // Check file size limit
+      if (file.size > MAX_FILE_SIZE) {
+        setError(`File is too large. Maximum size is 10MB. Your file is ${formatFileSize(file.size)}.`);
+        setSelectedFile(null);
+        setPreviewUrl("");
+        return;
+      }
+      
+      setSelectedFile(file);
+      setError(null);
+      
+      // Detect file type from MIME
+      const detectedType = getFileTypeFromMime(file);
+      setFileType(detectedType);
+      
+      // Create a local preview for images
+      if (detectedType === "image") {
+        const objectUrl = URL.createObjectURL(file);
+        setPreviewUrl(objectUrl);
+      } else {
+        setPreviewUrl("");
+      }
+      
+      if (!title) {
+        setTitle(file.name);
+      }
     }
   };
 
@@ -43,49 +91,118 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId }: AddReference
     if (activeTab === 'link' && !linkUrl) return;
 
     if (!workspaceId) {
-      alert("Error: Workspace ID is missing");
+      setError("Workspace ID is missing");
       return;
     }
-  // ... rest of the function
+
     setLoading(true);
+    setError(null);
 
     try {
-      let finalUrl = linkUrl;
-      let finalType = 'link';
-
-      // 1. IF UPLOADING: Send file to Firebase Storage first
-      if (activeTab === 'upload' && selectedFile) {
-        finalType = 'image';
-        
-        // Create a reference (folder path: workspaces/workspaceId/filename)
-        const storageRef = ref(storage, `workspaces/${workspaceId}/${Date.now()}_${selectedFile.name}`);
-        
-        // Upload the file
-        const snapshot = await uploadBytes(storageRef, selectedFile);
-        
-        // Get the public URL
-        finalUrl = await getDownloadURL(snapshot.ref);
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("You must be logged in to add references");
       }
 
-      // 2. SAVE DATA TO FIRESTORE (using the URL we just got)
-      await addDoc(collection(db, "workspaces", workspaceId, "references"), {
-        title: title,
-        type: finalType,
-        url: finalUrl, // This is now a short Firebase URL, not a huge text string!
-        author: auth.currentUser?.email?.split('@')[0] || "User",
-        createdAt: serverTimestamp(),
-      });
+      let finalUrl = linkUrl;
+      let finalType: ReferenceType = "document";
+      let metadata: Record<string, any> = {};
+
+      // Handle file upload
+      if (activeTab === 'upload' && selectedFile) {
+        finalType = fileType;
+        
+        // Build storage path: workspaceId/type/timestamp_filename
+        const storagePath = `${workspaceId}/${finalType}/${Date.now()}_${selectedFile.name}`;
+        
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from(STORAGE_BUCKET)
+          .upload(storagePath, selectedFile, {
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(`Upload failed: ${uploadError.message}`);
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(storagePath);
+
+        finalUrl = urlData.publicUrl;
+        metadata = {
+          size: formatFileSize(selectedFile.size),
+          original_name: selectedFile.name,
+        };
+      }
+      // Handle URL import
+      else if (activeTab === 'link' && linkUrl) {
+        finalType = getFileTypeFromUrl(linkUrl);
+
+        // Get session for API call
+        const { data: { session } } = await supabase.auth.getSession();
+
+        // Call import API to download and re-upload to our storage
+        const response = await fetch("/api/import-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token
+              ? { Authorization: `Bearer ${session.access_token}` }
+              : {}),
+          },
+          body: JSON.stringify({ url: linkUrl, type: finalType }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to import file");
+        }
+
+        const importData = await response.json();
+        finalUrl = importData.publicUrl;
+        metadata = {
+          source_url: linkUrl,
+        };
+      }
+
+      // Insert reference into database
+      const { data: refData, error: insertError } = await supabase
+        .from("references")
+        .insert({
+          workspace_id: workspaceId,
+          uploaded_by_profile_id: user.id,
+          reference_title: title,
+          reference_type: finalType,
+          reference_url: finalUrl,
+          reference_metadata: metadata,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        throw new Error(`Failed to save reference: ${insertError.message}`);
+      }
+
+      // Notify parent component
+      if (onReferenceAdded && refData) {
+        onReferenceAdded(refData);
+      }
 
       // Reset and Close
       setTitle("");
       setLinkUrl("");
       setPreviewUrl("");
       setSelectedFile(null);
+      setFileType("image");
       onClose();
 
-    } catch (error) {
-      console.error("Error adding reference:", error);
-      alert("Failed to add reference");
+    } catch (err: any) {
+      console.error("Error adding reference:", err);
+      setError(err.message || "Failed to add reference");
     } finally {
       setLoading(false);
     }
@@ -101,41 +218,81 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId }: AddReference
           <button onClick={onClose} className="text-stone-400 hover:text-stone-900"><X className="w-6 h-6" /></button>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex gap-4 border-b border-stone-100 mb-6">
           <button 
-            onClick={() => setActiveTab('upload')}
+            onClick={() => { setActiveTab('upload'); setError(null); }}
             className={`pb-2 text-sm font-bold transition-colors ${activeTab === 'upload' ? 'text-stone-900 border-b-2 border-stone-900' : 'text-stone-400'}`}
           >
             Upload
           </button>
           <button 
-            onClick={() => setActiveTab('link')}
+            onClick={() => { setActiveTab('link'); setError(null); }}
             className={`pb-2 text-sm font-bold transition-colors ${activeTab === 'link' ? 'text-stone-900 border-b-2 border-stone-900' : 'text-stone-400'}`}
           >
-            Link
+            Import URL
           </button>
         </div>
 
         <div className="space-y-5">
           {activeTab === 'upload' ? (
-            <div 
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-stone-200 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-stone-50 transition-colors h-48 overflow-hidden relative"
-            >
-              <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+            <>
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-stone-200 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-stone-50 transition-colors h-48 overflow-hidden relative"
+              >
+                <input 
+                  ref={fileInputRef} 
+                  type="file" 
+                  className="hidden" 
+                  accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md" 
+                  onChange={handleFileChange} 
+                />
+                
+                {selectedFile ? (
+                  previewUrl ? (
+                    <img src={previewUrl} alt="Preview" className="h-full w-full object-contain" />
+                  ) : (
+                    <div className="text-center">
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${TYPE_COLORS[fileType]}`}>
+                        {TYPE_ICONS[fileType]}
+                      </div>
+                      <p className="font-bold text-stone-700 truncate max-w-[200px]">{selectedFile.name}</p>
+                      <p className="text-xs text-stone-400 mt-1">{formatFileSize(selectedFile.size)}</p>
+                      <span className={`inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-bold uppercase ${TYPE_COLORS[fileType]}`}>
+                        {fileType}
+                      </span>
+                    </div>
+                  )
+                ) : (
+                  <>
+                    <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center text-stone-400 mb-3">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-stone-600">Click to upload file</p>
+                    <p className="text-xs text-stone-400 mt-1">Images, videos, audio, documents (max 10MB)</p>
+                  </>
+                )}
+              </div>
               
-              {previewUrl ? (
-                <img src={previewUrl} className="h-full w-full object-contain" />
-              ) : (
-                <>
-                  <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center text-stone-400 mb-3">
-                    <Upload className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm font-bold text-stone-600">Click to upload image</p>
-                </>
+              {/* File type indicator when file is selected */}
+              {selectedFile && previewUrl && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full ${TYPE_COLORS[fileType]}`}>
+                    {TYPE_ICONS[fileType]}
+                    <span className="uppercase font-bold text-xs">{fileType}</span>
+                  </span>
+                  <span className="text-stone-400">{formatFileSize(selectedFile.size)}</span>
+                </div>
               )}
-            </div>
+            </>
           ) : (
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 mb-2">URL</label>
@@ -143,12 +300,26 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId }: AddReference
                 <input 
                   type="text" 
                   value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="https://example.com/image.png" 
+                  onChange={(e) => { setLinkUrl(e.target.value); setError(null); }}
+                  placeholder="https://example.com/file.pdf" 
                   className="w-full pl-10 pr-4 py-3 rounded-xl bg-stone-50 border border-stone-200 focus:outline-none focus:ring-2 focus:ring-lime-500/50 transition-all font-medium text-stone-900" 
                 />
                 <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
               </div>
+              <p className="text-xs text-stone-400 mt-2">
+                Paste a URL to an image, video, audio, or document file
+              </p>
+              
+              {/* Show detected type when URL is entered */}
+              {linkUrl && (
+                <div className="mt-3 flex items-center gap-2 text-sm">
+                  <span className="text-stone-500">Detected type:</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full ${TYPE_COLORS[getFileTypeFromUrl(linkUrl)]}`}>
+                    {TYPE_ICONS[getFileTypeFromUrl(linkUrl)]}
+                    <span className="uppercase font-bold text-xs">{getFileTypeFromUrl(linkUrl)}</span>
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -158,7 +329,7 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId }: AddReference
                type="text" 
                value={title} 
                onChange={(e) => setTitle(e.target.value)}
-               placeholder="e.g. Moodboard V1"
+               placeholder="e.g. Design System V1"
                className="w-full px-4 py-3 rounded-xl bg-white border border-stone-200 focus:outline-none focus:ring-2 focus:ring-lime-500/50 transition-all font-bold text-stone-900" 
              />
           </div>
@@ -166,11 +337,18 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId }: AddReference
           <div className="flex gap-3 pt-2">
             <button disabled={loading} onClick={onClose} className="flex-1 py-3.5 rounded-xl border border-stone-200 text-stone-600 font-bold hover:bg-stone-50 transition-colors">Cancel</button>
             <button 
-              disabled={loading} 
+              disabled={loading || (activeTab === 'upload' && !selectedFile) || (activeTab === 'link' && !linkUrl)} 
               onClick={handleSubmit} 
-              className="flex-1 py-3.5 rounded-xl bg-[#1c1917] text-white font-bold hover:bg-stone-800 transition-colors shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              className="flex-1 py-3.5 rounded-xl bg-[#1c1917] text-white font-bold hover:bg-stone-800 transition-colors shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Reference"}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {activeTab === 'link' ? 'Importing...' : 'Uploading...'}
+                </>
+              ) : (
+                activeTab === 'link' ? 'Import' : 'Add Reference'
+              )}
             </button>
           </div>
         </div>

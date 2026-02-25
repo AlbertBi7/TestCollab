@@ -319,6 +319,36 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
     setIsAddModalOpen(false);
   }, [showToast]);
 
+  // Owner-only: Handle deleting a reference
+  const handleDeleteReference = useCallback(async (refId: string, refUrl: string) => {
+    if (!isOwner) return;
+    
+    try {
+      // Extract storage path from the public URL to delete from bucket
+      const STORAGE_BUCKET = "Link-UpWorkpace";
+      const urlParts = refUrl.split(`/storage/v1/object/public/${STORAGE_BUCKET}/`);
+      if (urlParts.length > 1) {
+        const storagePath = decodeURIComponent(urlParts[1]);
+        await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
+      }
+
+      // Delete from database
+      const { error } = await supabase
+        .from("references")
+        .delete()
+        .eq("reference_id", refId);
+
+      if (error) throw error;
+
+      // Update local state
+      setReferences((prev) => prev.filter((r) => r.reference_id !== refId));
+      showToast("Reference removed successfully");
+    } catch (err: any) {
+      console.error("Delete error:", err);
+      showToast("Failed to delete reference");
+    }
+  }, [isOwner, showToast]);
+
   const getCategoryEmoji = (category: string) => {
     const emojiMap: Record<string, string> = {
       Design: "🎨",
@@ -443,6 +473,8 @@ function PublicWorkspaceContent({ params }: { params: Promise<{ id: string }> })
                 }
                 onSave={() => handleSaveReference(ref.reference_id)}
                 onOpen={() => handleOpenReference(ref.reference_url)}
+                onDelete={() => handleDeleteReference(ref.reference_id, ref.reference_url)}
+                canDelete={isOwner}
               />
             ))}
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Download } from "lucide-react";
+import { ExternalLink, Download, Trash2 } from "lucide-react";
 
 interface ReferenceCardProps {
   id: string;
@@ -12,6 +12,8 @@ interface ReferenceCardProps {
   colorPalette?: string[];
   onSave?: () => void;
   onOpen?: () => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
 }
 
 export function ReferenceCard({
@@ -24,6 +26,8 @@ export function ReferenceCard({
   colorPalette,
   onSave,
   onOpen,
+  onDelete,
+  canDelete = false,
 }: ReferenceCardProps) {
   const renderPreview = () => {
     if (type === "color" && colorPalette) {
@@ -88,6 +92,19 @@ export function ReferenceCard({
 
   return (
     <div className="bg-white rounded-[32px] overflow-hidden group hover:shadow-xl transition-all border border-stone-100 hover-lift relative h-fit">
+      {/* Delete button - only visible for owners on hover */}
+      {canDelete && onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute top-3 right-3 z-10 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-lg"
+          title="Delete reference"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
       {renderPreview()}
       <div className="p-5">
         <h3 className="font-bold text-lg text-stone-900 truncate">{title}</h3>
