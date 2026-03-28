@@ -864,28 +864,35 @@ export function useWorkspace(workspaceId: string) {
         )
         .subscribe();
 
-    let referencesChannel = subscribeReferences();
-    let workspaceChannel = subscribeWorkspace();
-    let membersChannel = subscribeMembers();
-    let refChannel = subscribeRefUpdates();
+    let referencesChannel: ReturnType<typeof subscribeReferences> | null = null;
+    let workspaceChannel: ReturnType<typeof subscribeWorkspace> | null = null;
+    let membersChannel: ReturnType<typeof subscribeMembers> | null = null;
+    let refChannel: ReturnType<typeof subscribeRefUpdates> | null = null;
+
+    const setupTimer = window.setTimeout(() => {
+      referencesChannel = subscribeReferences();
+      workspaceChannel = subscribeWorkspace();
+      membersChannel = subscribeMembers();
+      refChannel = subscribeRefUpdates();
+    }, 0);
 
     // FIX 3: Reconnect dead channels on tab visibility restore.
     // Supabase WebSocket can close while the tab is backgrounded.
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
-      if (referencesChannel.state === 'closed' || referencesChannel.state === 'errored') {
+      if (referencesChannel && (referencesChannel.state === 'closed' || referencesChannel.state === 'errored')) {
         supabase.removeChannel(referencesChannel);
         referencesChannel = subscribeReferences();
       }
-      if (workspaceChannel.state === 'closed' || workspaceChannel.state === 'errored') {
+      if (workspaceChannel && (workspaceChannel.state === 'closed' || workspaceChannel.state === 'errored')) {
         supabase.removeChannel(workspaceChannel);
         workspaceChannel = subscribeWorkspace();
       }
-      if (membersChannel.state === 'closed' || membersChannel.state === 'errored') {
+      if (membersChannel && (membersChannel.state === 'closed' || membersChannel.state === 'errored')) {
         supabase.removeChannel(membersChannel);
         membersChannel = subscribeMembers();
       }
-      if (refChannel.state === 'closed' || refChannel.state === 'errored') {
+      if (refChannel && (refChannel.state === 'closed' || refChannel.state === 'errored')) {
         supabase.removeChannel(refChannel);
         refChannel = subscribeRefUpdates();
       }
@@ -895,13 +902,14 @@ export function useWorkspace(workspaceId: string) {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.clearTimeout(setupTimer);
       // FIX 2: Do NOT call reset() or setReferences([]) here.
       // Clearing stores on unmount wipes data on every tab switch and
       // client-side navigation, causing the infinite spinner.
-      supabase.removeChannel(referencesChannel);
-      supabase.removeChannel(workspaceChannel);
-      supabase.removeChannel(membersChannel);
-      supabase.removeChannel(refChannel);
+      if (referencesChannel) supabase.removeChannel(referencesChannel);
+      if (workspaceChannel) supabase.removeChannel(workspaceChannel);
+      if (membersChannel) supabase.removeChannel(membersChannel);
+      if (refChannel) supabase.removeChannel(refChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId, isValidWorkspaceId]);

@@ -88,6 +88,7 @@ export function WorkspaceHeader({
               src={coverImage}
               alt={title}
               fill
+              sizes="(max-width: 768px) 100vw, 1200px"
               priority
               className="w-full h-full object-cover opacity-90"
             />

@@ -73,63 +73,50 @@ export function useNotifications() {
 
     fetchNotifications();
 
-    // Subscribe to realtime changes
-    let channel = supabase
-      .channel(`user-notifications-${user.id}`)
-      .on('postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `recipient_profile_id=eq.${user.id}`
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newNotif = payload.new as Notification;
-            addNotification(newNotif);
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedNotif = payload.new as Notification;
-            const current = useNotificationsStore.getState().notifications;
-            setNotifications(
-              current.map((n) =>
-                n.notification_id === updatedNotif.notification_id ? updatedNotif : n
-              )
-            );
-          } else if (payload.eventType === 'DELETE') {
-            const current = useNotificationsStore.getState().notifications;
-            setNotifications(
-              current.filter((n) => n.notification_id !== payload.old.notification_id)
-            );
-          }
-        }
-      )
-      .subscribe();
+    const handleNotificationChange = (payload: any) => {
+      if (payload.eventType === 'INSERT') {
+        addNotification(payload.new as Notification);
+      } else if (payload.eventType === 'UPDATE') {
+        const updatedNotif = payload.new as Notification;
+        const current = useNotificationsStore.getState().notifications;
+        setNotifications(
+          current.map((n) =>
+            n.notification_id === updatedNotif.notification_id ? updatedNotif : n
+          )
+        );
+      } else if (payload.eventType === 'DELETE') {
+        const current = useNotificationsStore.getState().notifications;
+        setNotifications(
+          current.filter((n) => n.notification_id !== payload.old.notification_id)
+        );
+      }
+    };
+
+    const subscribeToNotifications = () =>
+      supabase
+        .channel(`user-notifications-${user.id}`)
+        .on('postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `recipient_profile_id=eq.${user.id}`
+          },
+          handleNotificationChange
+        )
+        .subscribe();
+
+    let channel: ReturnType<typeof subscribeToNotifications> | null = null;
+    const setupTimer = window.setTimeout(() => {
+      channel = subscribeToNotifications();
+    }, 0);
 
     // FIX 4: Reconnect the notifications channel when the tab regains focus.
     const handleVisibility = () => {
       if (document.visibilityState !== 'visible') return;
-      if (channel.state === 'closed' || channel.state === 'errored') {
+      if (channel && (channel.state === 'closed' || channel.state === 'errored')) {
         supabase.removeChannel(channel);
-        channel = supabase
-          .channel(`user-notifications-${user.id}`)
-          .on('postgres_changes',
-            { event: '*', schema: 'public', table: 'notifications', filter: `recipient_profile_id=eq.${user.id}` },
-            (payload) => {
-              if (payload.eventType === 'INSERT') {
-                addNotification(payload.new as Notification);
-              } else if (payload.eventType === 'UPDATE') {
-                const current = useNotificationsStore.getState().notifications;
-                setNotifications(current.map((n) =>
-                  n.notification_id === (payload.new as Notification).notification_id
-                    ? (payload.new as Notification) : n
-                ));
-              } else if (payload.eventType === 'DELETE') {
-                const current = useNotificationsStore.getState().notifications;
-                setNotifications(current.filter((n) => n.notification_id !== payload.old.notification_id));
-              }
-            }
-          )
-          .subscribe();
+        channel = subscribeToNotifications();
       }
     };
 
@@ -137,6 +124,7 @@ export function useNotifications() {
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.clearTimeout(setupTimer);
       if (channel) {
         supabase.removeChannel(channel);
       }

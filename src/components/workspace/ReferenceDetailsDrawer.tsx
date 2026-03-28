@@ -304,24 +304,30 @@ export function ReferenceDetailsDrawer({
   useEffect(() => {
     if (!isOpen || !reference || !isCommentsAvailable) return;
 
-    const commentsChannel = supabase
-      .channel(`reference-comments-${reference.reference_id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: commentsTable || "reference_comments",
-          filter: `reference_id=eq.${reference.reference_id}`,
-        },
-        () => {
-          loadComments();
-        }
-      )
-      .subscribe();
+    let commentsChannel: ReturnType<typeof supabase.channel> | null = null;
+    const setupTimer = window.setTimeout(() => {
+      commentsChannel = supabase
+        .channel(`reference-comments-${reference.reference_id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: commentsTable || "reference_comments",
+            filter: `reference_id=eq.${reference.reference_id}`,
+          },
+          () => {
+            loadComments();
+          }
+        )
+        .subscribe();
+    }, 0);
 
     return () => {
-      supabase.removeChannel(commentsChannel);
+      window.clearTimeout(setupTimer);
+      if (commentsChannel) {
+        supabase.removeChannel(commentsChannel);
+      }
     };
   }, [isOpen, reference?.reference_id, isCommentsAvailable, commentsTable]);
 
@@ -381,6 +387,7 @@ export function ReferenceDetailsDrawer({
               src={referenceThumbnail}
               alt={referenceTitle}
               fill
+              sizes="(max-width: 768px) 100vw, 448px"
               loading="lazy"
               className="w-full h-full object-cover"
             />

@@ -281,56 +281,62 @@ export function WorkspaceChat({
 
     setRealtimeStatus("connecting");
 
-    const channel = supabase
-      .channel(`workspace-chat-${workspaceId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `workspace_id=eq.${workspaceId}`,
-        },
-        async (payload) => {
-          const newMessage = payload.new as Message;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const setupTimer = window.setTimeout(() => {
+      channel = supabase
+        .channel(`workspace-chat-${workspaceId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `workspace_id=eq.${workspaceId}`,
+          },
+          async (payload) => {
+            const newMessage = payload.new as Message;
 
-          // Skip if already in state (covers own optimistic updates)
-          if (seenMessageIds.current.has(newMessage.message_id)) return;
-          seenMessageIds.current.add(newMessage.message_id);
+            // Skip if already in state (covers own optimistic updates)
+            if (seenMessageIds.current.has(newMessage.message_id)) return;
+            seenMessageIds.current.add(newMessage.message_id);
 
-          // Show immediately with cached profile (may be undefined, will update below)
-          const cachedProfile = profileCache.current.get(newMessage.sender_profile_id);
-          setMessages((prev) => [...prev, { ...newMessage, sender: cachedProfile }]);
+            // Show immediately with cached profile (may be undefined, will update below)
+            const cachedProfile = profileCache.current.get(newMessage.sender_profile_id);
+            setMessages((prev) => [...prev, { ...newMessage, sender: cachedProfile }]);
 
-          // Enrich with sender profile if not cached
-          if (!cachedProfile) {
-            const profile = await resolveProfile(newMessage.sender_profile_id);
-            if (profile) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.message_id === newMessage.message_id ? { ...msg, sender: profile } : msg
-                )
-              );
+            // Enrich with sender profile if not cached
+            if (!cachedProfile) {
+              const profile = await resolveProfile(newMessage.sender_profile_id);
+              if (profile) {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.message_id === newMessage.message_id ? { ...msg, sender: profile } : msg
+                  )
+                );
+              }
             }
           }
-        }
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setRealtimeStatus("connected");
-        } else if (
-          status === "CHANNEL_ERROR" ||
-          status === "TIMED_OUT" ||
-          status === "CLOSED"
-        ) {
-          setRealtimeStatus("disconnected");
-        } else {
-          setRealtimeStatus("connecting");
-        }
-      });
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            setRealtimeStatus("connected");
+          } else if (
+            status === "CHANNEL_ERROR" ||
+            status === "TIMED_OUT" ||
+            status === "CLOSED"
+          ) {
+            setRealtimeStatus("disconnected");
+          } else {
+            setRealtimeStatus("connecting");
+          }
+        });
+    }, 0);
 
     return () => {
-      supabase.removeChannel(channel);
+      window.clearTimeout(setupTimer);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [isOpen, workspaceId, resolveProfile]);
 
@@ -338,15 +344,10 @@ export function WorkspaceChat({
   useEffect(() => {
     if (!isOpen || !workspaceId || !currentUserId) return;
 
-    const presenceChannel = supabase.channel(`workspace-presence-${workspaceId}`, {
-      config: {
-        presence: {
-          key: currentUserId,
-        },
-      },
-    });
+    let presenceChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const syncPresenceUsers = () => {
+      if (!presenceChannel) return;
       const state = presenceChannel.presenceState() as Record<string, Array<{ user_id?: string }>>;
       const users = new Set<string>();
       Object.values(state).forEach((entries) => {
@@ -357,19 +358,32 @@ export function WorkspaceChat({
       setOnlineUserIds(users);
     };
 
-    presenceChannel
-      .on("presence", { event: "sync" }, syncPresenceUsers)
-      .on("presence", { event: "join" }, syncPresenceUsers)
-      .on("presence", { event: "leave" }, syncPresenceUsers)
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await presenceChannel.track({ user_id: currentUserId });
-        }
+    const setupTimer = window.setTimeout(() => {
+      presenceChannel = supabase.channel(`workspace-presence-${workspaceId}`, {
+        config: {
+          presence: {
+            key: currentUserId,
+          },
+        },
       });
 
+      presenceChannel
+        .on("presence", { event: "sync" }, syncPresenceUsers)
+        .on("presence", { event: "join" }, syncPresenceUsers)
+        .on("presence", { event: "leave" }, syncPresenceUsers)
+        .subscribe(async (status) => {
+          if (status === "SUBSCRIBED" && presenceChannel) {
+            await presenceChannel.track({ user_id: currentUserId });
+          }
+        });
+    }, 0);
+
     return () => {
-      presenceChannel.untrack();
-      supabase.removeChannel(presenceChannel);
+      window.clearTimeout(setupTimer);
+      if (presenceChannel) {
+        presenceChannel.untrack();
+        supabase.removeChannel(presenceChannel);
+      }
       setOnlineUserIds(new Set());
     };
   }, [isOpen, workspaceId, currentUserId]);

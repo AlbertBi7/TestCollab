@@ -316,6 +316,7 @@ export default function ProfilePage({
               src={profile.cover_url}
               alt="Cover"
               fill
+              sizes="(max-width: 768px) 100vw, 1200px"
               priority
               className="w-full h-full object-cover"
             />

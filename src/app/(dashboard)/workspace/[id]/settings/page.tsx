@@ -279,6 +279,7 @@ export default function WorkspaceSettingsPage({
                   src={bannerPreview}
                   alt="Workspace banner preview"
                   fill
+                  sizes="(max-width: 768px) 100vw, 768px"
                   className="w-full h-full object-cover"
                 />
               )}
