@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Eye, Heart, Share2, Copy, UserPlus, Tag, Settings } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface WorkspaceHeaderProps {
   id: string;
@@ -54,8 +55,10 @@ export function WorkspaceHeader({
   onManageTags,
 }: WorkspaceHeaderProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [liked, setLiked] = useState(isLiked);
   const authorInitial = (author.name?.trim()?.[0] || "U").toUpperCase();
+  const dashboardPath = user?.id ? `/dashboard/${user.id}` : "/dashboard";
   // Use prop if provided, otherwise local state (though usually controlled)
   // Check if we are in controlled mode effectively by seeing if we have a valid isFollowing prop
 
@@ -73,10 +76,10 @@ export function WorkspaceHeader({
     <>
       {/* Back Button */}
       <Link
-        href={isOwner ? "/dashboard" : "/explore"}
+        href={dashboardPath}
         className="inline-flex items-center gap-2 text-stone-500 font-bold hover:text-stone-900 transition-colors mb-6 ml-2 float-in"
       >
-        <ArrowLeft className="w-4 h-4" /> {isOwner ? "Back to Dashboard" : "Back to Explore"}
+        <ArrowLeft className="w-4 h-4" /> Back to Dashboard
       </Link>
 
       {/* Header */}
