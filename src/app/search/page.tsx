@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Fuse from "fuse.js";
-import { Search as SearchIcon } from "lucide-react";
+import { Search as SearchIcon, ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { WorkspaceCard, CreatorCard } from "@/components/explore";
 import { ReferenceCard } from "@/components/workspace/public";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type SearchTab = "workspaces" | "references" | "people";
 
@@ -54,6 +56,7 @@ const defaultAvatar = "https://images.unsplash.com/photo-1633332755192-727a05c40
 
 export default function GlobalSearchPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<SearchTab>("workspaces");
@@ -174,7 +177,20 @@ export default function GlobalSearchPage() {
 
   return (
     <div className="max-w-[1400px] mx-auto px-6 py-12 pb-16">
-      <div className="bg-white rounded-3xl border border-stone-100 p-4 md:p-6 mb-6">
+      <div className="flex items-center gap-4 mb-8">
+        <button
+          onClick={() => router.back()}
+          className="w-12 h-12 rounded-full bg-white border border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors shadow-sm"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-3xl font-medium text-stone-900 tracking-tight">Global Search</h1>
+          <p className="text-stone-500 text-sm">Find anything across your network</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[32px] border border-stone-100 p-4 md:p-6 mb-10 shadow-sm">
         <div className="relative">
           <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
           <input
@@ -190,22 +206,24 @@ export default function GlobalSearchPage() {
           <button
             onClick={runSearch}
             disabled={loading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl bg-[#1c1917] text-white text-sm font-semibold disabled:opacity-60"
+            className="absolute right-2 top-1/2 -translate-y-1/2 px-5 py-2.5 rounded-xl bg-[#1c1917] text-white text-sm font-semibold disabled:opacity-60 hover:bg-stone-800 transition-colors"
           >
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
 
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex items-center gap-2 mt-4 px-1">
           {(["workspaces", "references", "people"] as SearchTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                activeTab === tab ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-600"
+              className={`px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
+                activeTab === tab 
+                  ? "bg-stone-900 text-white shadow-lg shadow-stone-900/10" 
+                  : "bg-stone-100 text-stone-500 hover:bg-stone-200"
               }`}
             >
-              {tab[0].toUpperCase() + tab.slice(1)} ({tabCounts[tab]})
+              {tab} ({tabCounts[tab]})
             </button>
           ))}
         </div>
