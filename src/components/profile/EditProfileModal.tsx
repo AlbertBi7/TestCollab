@@ -178,7 +178,7 @@ export function EditProfileModal({
       }
 
       // Update Database
-      const { error, data: updateData } = await supabase
+      const { error } = await supabase
         .from("profiles")
         .update({
           display_name: displayName,
@@ -194,14 +194,15 @@ export function EditProfileModal({
         .eq("profile_id", user.id)
         .select();
 
-      console.log("[EditProfileModal] DB update result:", { error, updateData, finalCustomLinks });
       if (error) throw error;
 
       showToast("Profile updated successfully");
       onUpdate();
       onClose();
     } catch (err: any) {
-      console.error(err);
+      if (process.env.NODE_ENV === "development") {
+        console.error(err);
+      }
       showToast(err.message || "Failed to update profile");
     } finally {
       setIsSaving(false);

@@ -28,7 +28,7 @@ const SKILL_SUGGESTIONS = [
 
 export default function ProfileSetupPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 

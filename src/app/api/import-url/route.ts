@@ -213,38 +213,42 @@ function buildLinkFallbackResponse(params: {
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "");
+
+    if (!token) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const authClient = createClient(supabaseUrl, supabaseAnonKey);
+    const {
+      data: { user },
+      error: authError,
+    } = await authClient.auth.getUser(token);
+
+    if (authError || !user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { url, type, platform } = await request.json() as { url: string; type: ReferenceType; platform?: string };
 
     if (!url) {
       return NextResponse.json({ error: "URL is required" }, { status: 400 });
     }
 
-    // Get authorization header if present
-    const authHeader = request.headers.get("Authorization");
-    const token = authHeader?.replace("Bearer ", "");
-
     // Create clients:
     // - `authClient` verifies user token
     // - `storageClient` uploads with service role when available, otherwise user auth token
-    const authClient = createClient(supabaseUrl, supabaseAnonKey);
-
     const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
     const storageClient = hasServiceRole
       ? createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!)
       : createClient(supabaseUrl, supabaseAnonKey, {
           global: {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: { Authorization: `Bearer ${token}` },
           },
         });
 
-    // Verify user if token provided
-    let userId: string | null = null;
-    if (token) {
-      const { data: { user } } = await authClient.auth.getUser(token);
-      if (user) {
-        userId = user.id;
-      }
-    }
+    const userId: string | null = user.id;
 
     const detectedPlatform = (platform || "web").toLowerCase();
     const knownPlatforms = new Set([

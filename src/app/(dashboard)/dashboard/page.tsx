@@ -13,7 +13,7 @@ import {
 import Link from "next/link";
 
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

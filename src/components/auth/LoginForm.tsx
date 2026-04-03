@@ -6,53 +6,110 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Github, Loader2 } from "lucide-react";
 
+const isValidEmail = (email: string) => {
+  const trimmed = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return false;
+  if (!/[a-zA-Z]/.test(trimmed.split("@")[0] || "")) return false;
+  return true;
+};
+
+const getFriendlyError = (message: string): string => {
+  if (message.includes("Invalid login credentials")) return "Incorrect email or password.";
+  if (message.includes("Email not confirmed")) return "Please verify your email before logging in.";
+  if (message.includes("User already registered")) return "An account with this email already exists.";
+  if (message.includes("Network")) return "Connection error. Check your internet and try again.";
+  if (message.toLowerCase().includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
+  if (message.includes("Error sending confirmation email")) return "Could not send confirmation email. Try again shortly.";
+  return "Something went wrong. Please try again.";
+};
+
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showReset, setShowReset] = useState(false);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    setFormError("");
+    setEmailError("");
+    setPasswordError("");
+    setResetMessage("");
+    setIsSubmitting(true);
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!isValidEmail(normalizedEmail)) {
+      setEmailError("Please enter a valid email address.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!password.trim()) {
+      setPasswordError("Password is required.");
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
-      // SUPABASE LOGIN LOGIC
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(), // Trim spaces!
+        email: normalizedEmail,
         password,
       });
 
       if (error) throw error;
 
-      // Success - redirect to user's specific dashboard
       if (data?.user) {
         router.push(`/dashboard/${data.user.id}`);
       } else {
         router.push("/dashboard");
       }
 
-    } catch (err: any) {
-      console.error(err);
-      if (err.message?.includes("Email not confirmed")) {
-        setError("Please check your email and confirm your account before logging in.");
-      } else if (err.message?.includes("Invalid")) {
-        setError("Invalid email or password.");
-      } else {
-        setError(err.message || "Failed to log in.");
-      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setFormError(getFriendlyError(message));
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setFormError("");
+    setEmailError("");
+    setResetMessage("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!isValidEmail(normalizedEmail)) {
+      setEmailError("Enter a valid email before requesting reset.");
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      });
+
+      if (error) {
+        setFormError(getFriendlyError(error.message));
+        return;
+      }
+
+      setResetMessage("Check your email for a password reset link");
+    } finally {
+      setIsResetting(false);
     }
   };
 
   const handleSocialLogin = async (provider: 'google' | 'github') => {
     try {
-      // SUPABASE OAUTH LOGIC
-      // Note: You must enable Google/GitHub in your Supabase Dashboard -> Auth -> Providers
+      setFormError("");
       const { error } = await supabase.auth.signInWithOAuth({
         provider: provider,
         options: {
@@ -60,9 +117,9 @@ export function LoginForm() {
         },
       });
       if (error) throw error;
-    } catch (err: any) {
-      console.error(err);
-      setError(`Failed to sign in with ${provider}.`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setFormError(getFriendlyError(message));
     }
   };
 
@@ -71,9 +128,15 @@ export function LoginForm() {
       <h2 className="text-3xl font-bold text-center text-stone-900 mb-2">Welcome back</h2>
       <p className="text-center text-stone-500 mb-8">Enter your details to access your flow.</p>
 
-      {error && (
+      {formError && (
         <div className="mb-4 p-3 text-sm text-red-500 bg-red-50 rounded-xl text-center font-medium border border-red-100">
-          {error}
+          {formError}
+        </div>
+      )}
+
+      {resetMessage && (
+        <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 rounded-xl text-center font-medium border border-green-100">
+          {resetMessage}
         </div>
       )}
 
@@ -85,25 +148,41 @@ export function LoginForm() {
               type="email" 
               placeholder="alex@example.com" 
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setEmailError("");
+                setFormError("");
+                setResetMessage("");
+              }}
               className="w-full pl-12 pr-4 py-4 bg-stone-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-stone-900 focus:outline-none transition-all font-medium text-stone-900 placeholder:text-stone-400"
               required
             />
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400 group-focus-within:text-stone-900 transition-colors" />
           </div>
+          {emailError ? <p className="text-red-500 text-xs mt-1 ml-1">{emailError}</p> : null}
         </div>
 
         <div className="space-y-1">
           <div className="flex justify-between ml-3">
             <label className="text-xs font-bold uppercase tracking-wider text-stone-500">Password</label>
-            <a href="#" className="text-xs font-bold text-stone-900 hover:text-lime-600 transition-colors">Forgot?</a>
+            <button
+              type="button"
+              onClick={() => setShowReset((prev) => !prev)}
+              className="text-xs font-bold text-stone-900 hover:text-lime-600 transition-colors"
+            >
+              Forgot?
+            </button>
           </div>
           <div className="relative group">
             <input 
               type={showPassword ? "text" : "password"} 
               placeholder="••••••••" 
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setPasswordError("");
+                setFormError("");
+              }}
               className="w-full pl-12 pr-12 py-4 bg-stone-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-stone-900 focus:outline-none transition-all font-medium text-stone-900 placeholder:text-stone-400"
               required
             />
@@ -116,15 +195,26 @@ export function LoginForm() {
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {passwordError ? <p className="text-red-500 text-xs mt-1 ml-1">{passwordError}</p> : null}
+          {showReset ? (
+            <button
+              type="button"
+              onClick={handlePasswordReset}
+              disabled={isResetting}
+              className="text-xs font-semibold text-stone-800 mt-2 disabled:opacity-60"
+            >
+              {isResetting ? "Sending reset link..." : "Send password reset link"}
+            </button>
+          ) : null}
         </div>
 
         <button 
           type="submit" 
-          disabled={loading}
+          disabled={isSubmitting}
           className="w-full py-4 bg-[#1c1917] text-white rounded-2xl font-bold text-lg hover:bg-stone-800 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-stone-900/10 flex items-center justify-center gap-2 mt-4 disabled:opacity-70"
         >
-          {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Sign In"} 
-          {!loading && <ArrowRight className="w-5 h-5" />}
+          {isSubmitting ? <Loader2 className="animate-spin w-5 h-5" /> : "Sign In"} 
+          {!isSubmitting && <ArrowRight className="w-5 h-5" />}
         </button>
       </form>
 

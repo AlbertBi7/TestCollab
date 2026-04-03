@@ -56,58 +56,6 @@ interface PublicWorkspace {
   workspace_created_at: string;
 }
 
-// Mock data for initial display
-const mockProfile: ProfileData = {
-  id: "mock-1",
-  display_name: "Sarah Jenks",
-  username: "sarahj",
-  bio: "Obsessed with clean interfaces, typography, and organic shapes. I use Collabio to organize all my moodboards and design systems. Feel free to explore my public spaces! ✨",
-  avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
-  cover_url: "",
-  website_url: "https://example.com",
-  twitter_url: "",
-  linkedin_url: "https://linkedin.com/in/sarahj",
-  is_verified: true,
-  skills: ["UI/UX Design", "Figma", "Branding"],
-  custom_links: [],
-};
-
-const mockStats: ProfileStats = {
-  spacesCount: 42,
-  followersCount: 8400,
-  refsSavedCount: 12000,
-};
-
-const mockWorkspaces: PublicWorkspace[] = [
-  {
-    workspace_id: "w1",
-    workspace_title: "UI/UX Inspiration 2024",
-    workspace_description: "A curated collection of the best landing pages.",
-    workspace_cover_image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
-    workspace_category: "Design",
-    workspace_likes: 1200,
-    workspace_created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    workspace_id: "w2",
-    workspace_title: "Logofolio Vol. 2",
-    workspace_description: "References for minimalist logomarks.",
-    workspace_cover_image: "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800",
-    workspace_category: "Branding",
-    workspace_likes: 843,
-    workspace_created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    workspace_id: "w3",
-    workspace_title: "iOS App Patterns",
-    workspace_description: "Onboarding flows and micro-interactions.",
-    workspace_cover_image: "https://images.unsplash.com/photo-1558655146-d09347e92766?w=800",
-    workspace_category: "Mobile",
-    workspace_likes: 512,
-    workspace_created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-];
-
 // Placeholder images for workspaces without covers
 const placeholderImages = [
   "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800",
@@ -126,9 +74,14 @@ export default function ProfilePage({
   const { user } = useAuth();
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [stats, setStats] = useState<ProfileStats>(mockStats);
+  const [stats, setStats] = useState<ProfileStats>({
+    spacesCount: 0,
+    followersCount: 0,
+    refsSavedCount: 0,
+  });
   const [workspaces, setWorkspaces] = useState<PublicWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   // Use useFollow hook directly - will automatically check status and fetch count on mount
   const { isFollowing, toggleFollow, isLoading, followersCount: syncedFollowersCount } = useFollow(profileId || "");
@@ -158,6 +111,7 @@ export default function ProfilePage({
 
     const fetchProfileData = async () => {
       setLoading(true);
+      setFetchError(false);
       try {
         // Fetch profile
         const { data: profileData, error: profileError } = await supabase
@@ -167,18 +121,22 @@ export default function ProfilePage({
           .maybeSingle();
 
         if (profileError || !profileData) {
-          // Use mock data if profile not found
-          console.warn("Profile not found, using mock data", profileError);
-          setProfile(mockProfile);
-          setWorkspaces(mockWorkspaces);
-          setStats(mockStats);
+          setFetchError(true);
+          setProfile(null);
+          setWorkspaces([]);
+          setStats({
+            spacesCount: 0,
+            followersCount: 0,
+            refsSavedCount: 0,
+          });
+          return;
         } else {
           setProfile({
             id: profileData.profile_id,
             display_name: profileData.display_name || "Unknown User",
             username: profileData.display_name?.toLowerCase().replace(/\s+/g, '') || "user",
             bio: profileData.profile_bio || "",
-            avatar_url: profileData.profile_avatar_url || mockProfile.avatar_url,
+            avatar_url: profileData.profile_avatar_url || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400",
             cover_url: profileData.profile_cover_url || "",
             website_url: profileData.profile_website_url || "",
             twitter_url: profileData.profile_twitter_url || "",
@@ -227,9 +185,14 @@ export default function ProfilePage({
           });
         }
       } catch (err) {
-        console.error("Error fetching profile:", err);
-        setProfile(mockProfile);
-        setWorkspaces(mockWorkspaces);
+        setFetchError(true);
+        setProfile(null);
+        setWorkspaces([]);
+        setStats({
+          spacesCount: 0,
+          followersCount: 0,
+          refsSavedCount: 0,
+        });
       } finally {
         setLoading(false);
       }
@@ -288,7 +251,23 @@ export default function ProfilePage({
     return emojiMap[category || ""] || "📁";
   };
 
-  if (loading || !profile) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin w-8 h-8 border-4 border-lime-500 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <p className="text-stone-500 text-lg">Profile not found.</p>
+      </div>
+    );
+  }
+
+  if (!profile) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="animate-spin w-8 h-8 border-4 border-lime-500 border-t-transparent rounded-full"></div>

@@ -20,7 +20,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, isLoading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -34,10 +34,10 @@ export default function DashboardLayout({
   const initial = (displayName?.trim()?.[0] || "U").toUpperCase();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!isLoading && !user && !pathname?.startsWith("/profile")) {
       router.replace("/login");
     }
-  }, [loading, user, router]);
+  }, [isLoading, user, pathname, router]);
 
   // Determine active tab based on current path
   const isExplorePage = pathname === "/explore" || pathname?.startsWith("/profile/");
@@ -95,7 +95,7 @@ export default function DashboardLayout({
   };
 
   // Show loading state while checking auth or profile completion
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F2F2F0]">
         <div className="w-12 h-12 border-4 border-stone-200 border-t-stone-900 rounded-full animate-spin"></div>

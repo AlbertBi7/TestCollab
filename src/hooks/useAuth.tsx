@@ -118,7 +118,7 @@ const initializeAuthOnce = async () => {
 };
 
 export function useAuth() {
-  const { user, profile, isLoading: loading, clear } = useAuthStore();
+  const { user, profile, isLoading, clear } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -139,5 +139,5 @@ export function useAuth() {
     }
   };
 
-  return { user, profile, loading, signOut };
+  return { user, profile, isLoading, signOut };
 }

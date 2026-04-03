@@ -53,7 +53,7 @@ export async function middleware(request: NextRequest) {
   const isPublicRoute =
     pathname === "/" ||
     pathname.startsWith("/explore") ||
-    pathname === "/auth/confirm" ||
+    pathname.startsWith("/profile") ||
     pathname === "/auth/callback";
 
   if (isPublicRoute) {

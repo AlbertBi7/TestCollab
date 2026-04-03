@@ -5,7 +5,33 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { User, Mail, Lock, Eye, EyeOff, ShieldCheck, Check, CheckCircle2, Github } from "lucide-react";
+import { User, Mail, Lock, Eye, EyeOff, Check, CheckCircle2, Github, Loader2 } from "lucide-react";
+
+const nameRegex = /^[a-zA-Z][a-zA-Z\s\-']{1,49}$/;
+
+const isValidName = (name: string) => {
+  const trimmed = name.trim();
+  if (trimmed.length < 2 || trimmed.length > 50) return false;
+  if (!/[a-zA-Z]/.test(trimmed)) return false;
+  return nameRegex.test(trimmed);
+};
+
+const isValidEmail = (email: string) => {
+  const trimmed = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return false;
+  if (!/[a-zA-Z]/.test(trimmed.split("@")[0] || "")) return false;
+  return true;
+};
+
+const getFriendlyError = (message: string): string => {
+  if (message.includes("Invalid login credentials")) return "Incorrect email or password.";
+  if (message.includes("Email not confirmed")) return "Please verify your email before logging in.";
+  if (message.includes("User already registered")) return "An account with this email already exists.";
+  if (message.includes("Network")) return "Connection error. Check your internet and try again.";
+  if (message.toLowerCase().includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
+  if (message.includes("Error sending confirmation email")) return "Could not send confirmation email. Try again shortly.";
+  return "Something went wrong. Please try again.";
+};
 
 export function SignUpForm() {
   const router = useRouter();
@@ -13,10 +39,11 @@ export function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
-  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   // Password Strength Logic
   const getStrength = (pass: string) => {
@@ -63,97 +90,56 @@ export function SignUpForm() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true);
     setError("");
+    setNameError("");
+    setEmailError("");
+    setPasswordError("");
 
-    // Client-side validation
-    if (!name.trim()) {
-      setError("Name is required");
-      setLoading(false);
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!isValidName(normalizedName)) {
+      setNameError("Enter a valid name (2-50 chars, letters/spaces/-/').");
+      setIsSubmitting(false);
       return;
     }
 
-    if (!email.trim()) {
-      setError("Email is required");
-      setLoading(false);
+    if (!isValidEmail(normalizedEmail)) {
+      setEmailError("Please enter a valid email address.");
+      setIsSubmitting(false);
       return;
     }
 
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address");
-      setLoading(false);
-      return;
-    }
-
-    // Password validation
     if (password.length < 6) {
-      setError("Password must be at least 6 characters long");
-      setLoading(false);
+      setPasswordError("Password must be at least 6 characters long.");
+      setIsSubmitting(false);
       return;
     }
 
     try {
-      console.log("Attempting signup with:", {
-        email: email.trim(),
-        name: name.trim(),
-        passwordLength: password.length
-      });
-
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: normalizedEmail,
         password: password,
         options: {
-          // This data is passed to the SQL Trigger 'handle_new_user'
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
-            full_name: name.trim(),
-            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name.trim())}`,
+            full_name: normalizedName,
+            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(normalizedName)}`,
           },
         },
       });
 
-      console.log("Signup response:", { data, error });
-
       if (error) {
-        console.error("Supabase signup error:", error);
         throw error;
       }
 
-      // Check if email confirmation is required
-      if (data.user && !data.user.email_confirmed_at) {
-        setSuccess(true);
-      } else if (data.user) {
-        // User is immediately confirmed, redirect to dashboard
-        router.push('/auth/callback');
-      }
-
-    } catch (err: any) {
-      console.error("Signup error details:", err);
-      
-      // Handle specific error cases
-      if (err.message?.includes("email rate limit exceeded") || err.message?.includes("rate limit") || err.message?.includes("Too Many Requests")) {
-        setIsRateLimited(true);
-        setError("Too many signup attempts. Please wait 5-10 minutes before trying again, or try logging in if you already have an account.");
-        
-        // Auto-clear rate limit state after 5 minutes
-        setTimeout(() => {
-          setIsRateLimited(false);
-          setError("");
-        }, 5 * 60 * 1000);
-      } else if (err.message?.includes("User already registered")) {
-        setError("This email is already registered. Try logging in instead.");
-      } else if (err.message?.includes("Invalid email")) {
-        setError("Please enter a valid email address.");
-      } else if (err.message?.includes("Password")) {
-        setError("Password must be at least 6 characters with a mix of letters and numbers.");
-      } else if (err.message?.includes("Signup is disabled")) {
-        setError("Account creation is temporarily disabled. Please try again later.");
-      } else {
-        setError(err.message || "Failed to create account. Please check your information and try again.");
-      }
+      router.replace(`/auth/confirm?email=${encodeURIComponent(normalizedEmail)}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      setError(getFriendlyError(message));
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -195,26 +181,6 @@ export function SignUpForm() {
         </div>
       )}
       
-      {success && (
-        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-2xl">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-bold text-green-900 mb-1">Account created! 🎉</p>
-              <p className="text-xs text-green-700">Check your email to confirm your account. After confirming, you can log in.</p>
-            </div>
-          </div>
-          <Link
-            href="/login"
-            className="mt-3 block w-full py-2 text-center bg-green-600 text-white rounded-xl font-medium text-sm hover:bg-green-700 transition-colors"
-          >
-            Go to Login
-          </Link>
-        </div>
-      )}
-
-      {!success && (
-        <>
       <form onSubmit={handleSignUp} className="space-y-4">
         
         {/* Full Name */}
@@ -224,12 +190,17 @@ export function SignUpForm() {
               type="text" 
               placeholder="Full Name" 
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError("");
+                setError("");
+              }}
               className="w-full pl-12 pr-4 py-4 bg-stone-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-stone-900 focus:outline-none transition-all font-medium text-stone-900 placeholder:text-stone-400"
               required
             />
             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400 group-focus-within:text-stone-900 transition-colors" />
           </div>
+          {nameError ? <p className="text-red-500 text-xs mt-1 ml-1">{nameError}</p> : null}
         </div>
 
         {/* Email */}
@@ -239,13 +210,18 @@ export function SignUpForm() {
               type="email" 
               placeholder="Email Address" 
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setEmailError("");
+                setError("");
+              }}
               className="w-full pl-12 pr-10 py-4 bg-stone-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-stone-900 focus:outline-none transition-all font-medium text-stone-900 placeholder:text-stone-400 peer valid:border-green-500/50 valid:bg-green-50/30"
               required
             />
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400 group-focus-within:text-stone-900 transition-colors" />
             {email.includes("@") && <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500" />}
           </div>
+          {emailError ? <p className="text-red-500 text-xs mt-1 ml-1">{emailError}</p> : null}
         </div>
 
         {/* Password */}
@@ -255,7 +231,11 @@ export function SignUpForm() {
               type={showPassword ? "text" : "password"} 
               placeholder="Create Password" 
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setPasswordError("");
+                setError("");
+              }}
               className="w-full pl-12 pr-12 py-4 bg-stone-50 rounded-2xl border-2 border-transparent focus:bg-white focus:border-stone-900 focus:outline-none transition-all font-medium text-stone-900 placeholder:text-stone-400"
               required
             />
@@ -264,6 +244,7 @@ export function SignUpForm() {
                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {passwordError ? <p className="text-red-500 text-xs mt-1 ml-1">{passwordError}</p> : null}
           {/* Strength Bar */}
           <div className="h-1 w-full bg-stone-100 rounded-full mt-2 overflow-hidden flex">
             <div className={`h-full transition-all duration-300 ${getStrengthColor()}`} style={{ width: `${(strength / 4) * 100}%` }}></div>
@@ -288,20 +269,14 @@ export function SignUpForm() {
 
         <button 
           type="submit" 
-          disabled={loading || isRateLimited}
+          disabled={isSubmitting}
           className={`w-full py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 mt-2 transition-all shadow-xl shadow-stone-900/10 ${
-            isRateLimited 
-              ? 'bg-gray-400 text-gray-700 cursor-not-allowed' 
-              : loading 
-                ? 'bg-stone-600 text-white' 
-                : 'bg-[#1c1917] text-white hover:bg-stone-800 hover:scale-[1.02] active:scale-[0.98]'
+            isSubmitting 
+              ? 'bg-stone-600 text-white' 
+              : 'bg-[#1c1917] text-white hover:bg-stone-800 hover:scale-[1.02] active:scale-[0.98]'
           } disabled:opacity-70`}
         >
-          {isRateLimited 
-            ? "Rate Limited - Try Again Later" 
-            : loading 
-              ? "Creating..." 
-              : "Create Account"}
+          {isSubmitting ? <Loader2 className="animate-spin w-5 h-5" /> : "Create Account"}
         </button>
       </form>
 
@@ -336,8 +311,6 @@ export function SignUpForm() {
           Login
         </Link>
       </p>
-      </>
-      )}
     </div>
   );
 }

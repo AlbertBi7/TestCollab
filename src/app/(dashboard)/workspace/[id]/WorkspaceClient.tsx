@@ -36,7 +36,7 @@ const STORAGE_BUCKET = "Link-UpWorkpace";
 
 export default function WorkspaceClient({ workspaceId }: WorkspaceClientProps) {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
 
   const {
@@ -285,18 +285,26 @@ export default function WorkspaceClient({ workspaceId }: WorkspaceClientProps) {
   const getReferencePreview = (ref: ReferenceData) => {
     const thumbnailStored = ref.reference_metadata?.thumbnailStoredUrl;
     const thumbnail = ref.reference_metadata?.thumbnail;
-
-    if (ref.reference_type === "image") {
+    const metadataPreview = (() => {
       if (isLikelyImageUrl(thumbnailStored) && isSafePreviewUrl(thumbnailStored)) return thumbnailStored as string;
       if (isLikelyImageUrl(thumbnail) && isSafePreviewUrl(thumbnail)) return thumbnail as string;
+      return null;
+    })();
+
+    if (ref.reference_type === "image") {
+      if (metadataPreview) return metadataPreview;
       if (isLikelyImageUrl(ref.reference_url) && isSafePreviewUrl(ref.reference_url)) return ref.reference_url;
       return "/window.svg";
     }
 
     if (ref.reference_type === "video") {
-      if (isLikelyImageUrl(thumbnailStored) && isSafePreviewUrl(thumbnailStored)) return thumbnailStored as string;
-      if (isLikelyImageUrl(thumbnail) && isSafePreviewUrl(thumbnail)) return thumbnail as string;
+      if (metadataPreview) return metadataPreview;
       return "/next.svg";
+    }
+
+    if (ref.reference_type === "link") {
+      if (metadataPreview) return metadataPreview;
+      return "/file.svg";
     }
 
     if (ref.reference_type === "audio") return "/vercel.svg";

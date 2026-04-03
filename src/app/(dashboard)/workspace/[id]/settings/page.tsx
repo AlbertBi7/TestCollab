@@ -26,7 +26,7 @@ export default function WorkspaceSettingsPage({
   params: Promise<{ id: string }>;
 }) {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSettings | null>(null);
@@ -57,7 +57,6 @@ export default function WorkspaceSettingsPage({
         return;
       }
 
-      console.log(`[Settings] Fetching data for workspace: ${workspaceId} (User: ${user.id})`);
       setLoading(true);
       try {
         const [{ data, error }, { data: ownerMembership }] = await Promise.all([
@@ -76,18 +75,24 @@ export default function WorkspaceSettingsPage({
         ]);
 
         if (error) {
-          console.error("Workspace settings fetch error:", error.message || error);
+          if (process.env.NODE_ENV === "development") {
+            console.error("Workspace settings fetch error:", error.message || error);
+          }
           return;
         }
 
         if (!data) {
-          console.warn("No workspace found for ID:", workspaceId);
+          if (process.env.NODE_ENV === "development") {
+            console.warn("No workspace found for ID:", workspaceId);
+          }
           return;
         }
 
         const isOwner = data.workspace_owner_id === user.id || ownerMembership?.member_role === "owner";
         if (!isOwner) {
-          console.warn("User is not authorized for settings (not an owner)");
+          if (process.env.NODE_ENV === "development") {
+            console.warn("User is not authorized for settings (not an owner)");
+          }
           router.replace(`/workspace/${workspaceId}`);
           return;
         }
@@ -100,7 +105,9 @@ export default function WorkspaceSettingsPage({
         setBannerFile(null);
         setBannerRemoved(false);
       } catch (err) {
-        console.error("Critical error in settings fetch:", err);
+        if (process.env.NODE_ENV === "development") {
+          console.error("Critical error in settings fetch:", err);
+        }
       } finally {
         setLoading(false);
       }
@@ -158,7 +165,7 @@ export default function WorkspaceSettingsPage({
         finalBannerUrl = data.publicUrl;
       }
 
-      await supabase
+      const { error: updateError } = await supabase
         .from("workspaces")
         .update({
           workspace_title: title,
@@ -169,6 +176,11 @@ export default function WorkspaceSettingsPage({
         .eq("workspace_id", workspaceId)
         .eq("workspace_owner_id", user.id);
 
+      if (updateError) {
+        showToast(updateError.message || "Failed to update workspace");
+        return;
+      }
+
       const { error: saveActivityError } = await supabase.from("activity_logs").insert({
         activity_type: "updated_workspace",
         activity_target_title: title || workspace.workspace_title || "Untitled Workspace",
@@ -176,7 +188,9 @@ export default function WorkspaceSettingsPage({
         actor_profile_id: user.id,
       });
       if (saveActivityError) {
-        console.warn("Failed to log updated_workspace activity", saveActivityError);
+        if (process.env.NODE_ENV === "development") {
+          console.warn("Failed to log updated_workspace activity", saveActivityError);
+        }
       }
 
       setWorkspace((prev) => (prev ? { ...prev, workspace_cover_image: finalBannerUrl } : prev));
@@ -191,11 +205,16 @@ export default function WorkspaceSettingsPage({
 
   const handleArchive = async () => {
     if (!workspaceId || !user?.id) return;
-    await supabase
+    const { error: archiveError } = await supabase
       .from("workspaces")
       .update({ is_archived: true })
       .eq("workspace_id", workspaceId)
       .eq("workspace_owner_id", user.id);
+
+    if (archiveError) {
+      showToast(archiveError.message || "Failed to archive workspace");
+      return;
+    }
 
     const { error: archiveActivityError } = await supabase.from("activity_logs").insert({
       activity_type: "archived_workspace",
@@ -204,7 +223,9 @@ export default function WorkspaceSettingsPage({
       actor_profile_id: user.id,
     });
     if (archiveActivityError) {
-      console.warn("Failed to log archived_workspace activity", archiveActivityError);
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Failed to log archived_workspace activity", archiveActivityError);
+      }
     }
 
     router.push(`/dashboard/${user.id}`);
@@ -213,11 +234,16 @@ export default function WorkspaceSettingsPage({
   const handleDelete = async () => {
     if (!workspaceId || !user?.id) return;
     if (!window.confirm("Delete this workspace permanently?")) return;
-    await supabase
+    const { error: deleteError } = await supabase
       .from("workspaces")
       .delete()
       .eq("workspace_id", workspaceId)
       .eq("workspace_owner_id", user.id);
+
+    if (deleteError) {
+      showToast(deleteError.message || "Failed to delete workspace");
+      return;
+    }
 
     const { error: deleteActivityError } = await supabase.from("activity_logs").insert({
       activity_type: "deleted_workspace",
@@ -226,7 +252,9 @@ export default function WorkspaceSettingsPage({
       actor_profile_id: user.id,
     });
     if (deleteActivityError) {
-      console.warn("Failed to log deleted_workspace activity", deleteActivityError);
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Failed to log deleted_workspace activity", deleteActivityError);
+      }
     }
 
     router.push(`/dashboard/${user.id}`);
