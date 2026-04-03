@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google"; // Import Outfit font
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
+import { AuthBootstrap } from "@/components/auth/AuthBootstrap";
 
 const outfit = Outfit({ subsets: ["latin"], display: "swap" }); // Configure it
 
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body className={`${outfit.className} bg-[#F2F2F0] text-[#1c1917] antialiased`}>
+        <AuthBootstrap />
         <ToastProvider>
           {children}
         </ToastProvider>

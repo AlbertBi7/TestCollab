@@ -123,7 +123,7 @@ function toAbsoluteUrl(candidate: string, baseUrl: string): string {
 }
 
 async function uploadPreviewFromUrl(params: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: any;
   imageUrl: string;
   baseType: ReferenceType;
 }) {
@@ -312,7 +312,7 @@ export async function POST(request: NextRequest) {
     const contentType = response.headers.get("content-type") || "application/octet-stream";
     const inferredType = inferTypeFromContentType(contentType, type);
 
-    let blob: Blob;
+    let blob: Blob | null = null;
     let metadata: Record<string, any> = {
       platform: platform || null,
       thumbnail: previewFromMeta,
@@ -487,6 +487,20 @@ export async function POST(request: NextRequest) {
     // Build storage path
     const safeFileName = sanitizeFileName(fileName);
     const storagePath = `imports/${actualType}/${Date.now()}_${safeFileName}`;
+
+    if (!blob) {
+      return buildLinkFallbackResponse({
+        url,
+        title: extractedTitle,
+        contentType,
+        metadata: {
+          ...metadata,
+          platform: detectedPlatform,
+        },
+        previewFromMeta,
+        note: "No downloadable media found; saved as link",
+      });
+    }
 
     // Upload to Supabase Storage
     const { error: uploadError } = await storageClient.storage

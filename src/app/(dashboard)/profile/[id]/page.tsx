@@ -53,6 +53,7 @@ interface PublicWorkspace {
   workspace_cover_image: string | null;
   workspace_category: string | null;
   workspace_likes: number;
+  workspace_visibility?: string | null;
   workspace_created_at: string;
 }
 
@@ -207,7 +208,7 @@ export default function ProfilePage({
   };
 
   const handleRemoveBanner = async () => {
-    if (!user?.id || user.id !== profile.id) return;
+    if (!user?.id || user.id !== profile?.id) return;
 
     const { error } = await supabase
       .from("profiles")

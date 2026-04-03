@@ -1,15 +1,5 @@
 import { create } from 'zustand'
-
-type Notification = {
-  notification_id: string
-  recipient_profile_id: string
-  notification_type: string
-  notification_message: string
-  notification_link: string | null
-  notification_data?: Record<string, any> | null
-  notification_is_read: boolean
-  notification_created_at: string
-}
+import type { Notification } from '@/types'
 
 type NotificationsStore = {
   notifications: Notification[]

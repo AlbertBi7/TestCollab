@@ -11,6 +11,7 @@ type Reference = {
   reference_metadata?: Record<string, any>
   reference_created_at?: string
   folder_id?: string | null
+  tags?: Array<{ tag_id: string; tag_name: string; tag_color: string }>
 }
 
 type ReferencesStore = {

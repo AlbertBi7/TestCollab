@@ -390,10 +390,10 @@ export default function DashboardClient({
               categoryEmoji={workspace.workspace_category_emoji || "📁"}
               likes={0}
               showAuthor={true}
-              author={isOwner ? {
+              author={isOwner && user ? {
                 id: user.id,
                 name: profileSummary.displayName,
-                avatar: user.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=100",
+                avatar: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=100",
               } : undefined}
               updatedAt={new Date(workspace.workspace_created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
               isOwner={isOwner}

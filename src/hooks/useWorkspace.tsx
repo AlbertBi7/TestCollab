@@ -12,8 +12,9 @@ interface WorkspaceData {
   workspace_title: string;
   workspace_description: string;
   workspace_owner_id: string;
-  workspace_visibility: string;
+  workspace_visibility: 'public' | 'private';
   workspace_cover_image: string | null;
+  is_archived: boolean;
   workspace_created_at: string;
 }
 

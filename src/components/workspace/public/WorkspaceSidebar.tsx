@@ -16,11 +16,13 @@ const SUB_TYPE_META: Record<string, { label: string; icon: React.ReactNode; colo
 interface WorkspaceSidebarProps {
   folders: WorkspaceFolder[];
   references: ReferenceData[];
+  tags?: string[];
   activeFilter: FolderFilter;
   onFilterChange: (filter: FolderFilter) => void;
+  onTagClick?: (tag: string) => void;
   canManageFolders?: boolean;
   onCreateFolder?: () => void;
-  onDeleteFolder?: (folderId: string) => void;
+  onDeleteFolder?: (folderId: string) => void | Promise<void>;
 }
 
 function getSubTypeCounts(refs: ReferenceData[]): Record<string, number> {
@@ -45,8 +47,10 @@ function isFilterActive(filter: FolderFilter, check: FolderFilter): boolean {
 export function WorkspaceSidebar({
   folders,
   references,
+  tags,
   activeFilter,
   onFilterChange,
+  onTagClick,
   canManageFolders = false,
   onCreateFolder,
   onDeleteFolder,
