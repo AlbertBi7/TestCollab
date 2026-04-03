@@ -28,6 +28,7 @@ export default function DashboardClient({
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>(initialWorkspaces || []);
+  const [activeWorkspaceFilter, setActiveWorkspaceFilter] = useState<"all" | "owned" | "shared" | "public" | "private">("all");
   const [clientFetchError, setClientFetchError] = useState<string | null>(null);
   const [isRefreshingWorkspaces, setIsRefreshingWorkspaces] = useState(false);
 
@@ -99,6 +100,25 @@ export default function DashboardClient({
     "https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80&w=800",
   ];
 
+  const filteredWorkspaces = workspaces.filter((workspace) => {
+    const isOwner = workspace.workspace_owner_id === user?.id;
+    const visibility = (workspace.workspace_visibility || "").toLowerCase();
+
+    if (activeWorkspaceFilter === "owned") return isOwner;
+    if (activeWorkspaceFilter === "shared") return !isOwner;
+    if (activeWorkspaceFilter === "public") return visibility === "public";
+    if (activeWorkspaceFilter === "private") return visibility === "private";
+    return true;
+  });
+
+  const filterOptions: Array<{ id: "all" | "owned" | "shared" | "public" | "private"; label: string }> = [
+    { id: "all", label: "All" },
+    { id: "owned", label: "Owned" },
+    { id: "shared", label: "Shared" },
+    { id: "public", label: "Public" },
+    { id: "private", label: "Private" },
+  ];
+
   return (
     <>
       <CreateWorkspaceModal
@@ -149,7 +169,7 @@ export default function DashboardClient({
               </div>
 
               <div className="space-y-4">
-                {workspaces.slice(0, 3).map((ws, i) => (
+                {filteredWorkspaces.slice(0, 3).map((ws, i) => (
                   <Link 
                     key={ws.workspace_id} 
                     href={`/workspace/${ws.workspace_id}`}
@@ -169,8 +189,8 @@ export default function DashboardClient({
                     <ArrowUpRight className="w-4 h-4 text-stone-300 group-hover/item:text-stone-900 group-hover/item:translate-x-0.5 group-hover/item:-translate-y-0.5 transition-all" />
                   </Link>
                 ))}
-                {workspaces.length === 0 && (
-                  <p className="text-stone-400 text-sm italic p-4">No recent workspaces to show.</p>
+                {filteredWorkspaces.length === 0 && (
+                  <p className="text-stone-400 text-sm italic p-4">No recent workspaces for this filter.</p>
                 )}
               </div>
             </div>
@@ -276,6 +296,21 @@ export default function DashboardClient({
           <p className="text-stone-400 text-sm mt-1">Select a space to start organizing references.</p>
         </div>
         <div className="flex items-center gap-6">
+          <div className="hidden lg:flex items-center gap-2 rounded-2xl border border-stone-200 bg-white p-1">
+            {filterOptions.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => setActiveWorkspaceFilter(option.id)}
+                className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                  activeWorkspaceFilter === option.id
+                    ? "bg-stone-900 text-white"
+                    : "text-stone-500 hover:bg-stone-50"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <div className="hidden md:flex flex-col items-end">
             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Total Assets</span>
             <span className="text-xl font-mono text-stone-900">{workspaces.length}</span>
@@ -287,8 +322,27 @@ export default function DashboardClient({
         </div>
       </div>
 
+      <div className="lg:hidden mb-8 px-2">
+        <div className="flex items-center gap-2 overflow-x-auto rounded-2xl border border-stone-200 bg-white p-1">
+          {filterOptions.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => setActiveWorkspaceFilter(option.id)}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors whitespace-nowrap ${
+                activeWorkspaceFilter === option.id
+                  ? "bg-stone-900 text-white"
+                  : "text-stone-500 hover:bg-stone-50"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filteredWorkspaces.length > 0 ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {workspaces.map((workspace, index) => {
+        {filteredWorkspaces.map((workspace, index) => {
           const isOwner = workspace.workspace_owner_id === user?.id;
           return (
           <Link
@@ -343,6 +397,12 @@ export default function DashboardClient({
           );
         })}
       </div>
+      ) : workspaces.length > 0 ? (
+        <div className="mt-8 bg-white rounded-[40px] p-10 text-center border border-dashed border-stone-200">
+          <h3 className="text-xl font-medium text-stone-900 mb-2">No matches for this filter</h3>
+          <p className="text-stone-500 text-sm">Try switching filters to view other workspaces.</p>
+        </div>
+      ) : null}
 
       {workspaces.length === 0 && (
         <div className="mt-12 bg-white rounded-[48px] p-12 text-center border border-dashed border-stone-200 relative overflow-hidden">
