@@ -563,6 +563,8 @@ export default function ProfilePage({
                 likes={workspace.workspace_likes || 0}
                 showAuthor={false}
                 updatedAt={formatDate(workspace.workspace_created_at)}
+                isOwner={user?.id === profile.id}
+                visibility={workspace.workspace_visibility || "public"}
               />
             ))}
           </div>

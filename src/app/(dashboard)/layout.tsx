@@ -43,6 +43,8 @@ export default function DashboardLayout({
   const isExplorePage = pathname === "/explore" || pathname?.startsWith("/profile/");
   const isDashboardPage = !isExplorePage;
 
+  const bgClass = isExplorePage ? "bg-[#f8f9fa]" : "bg-[#F2F2F0]";
+
   const handleProfileClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -109,7 +111,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#F2F2F0] antialiased overflow-x-hidden pb-12">
+    <div className={`min-h-screen ${bgClass} antialiased overflow-x-hidden pb-12 transition-colors duration-500`}>
       {/* Floating Glass Navbar */}
       <div className="fixed top-8 left-0 right-0 flex justify-center z-50 pointer-events-none px-4">
         <nav className="pointer-events-auto bg-white/70 backdrop-blur-xl border border-white/50 rounded-full pl-6 pr-2 py-2 shadow-[0_8px_32px_rgba(0,0,0,0.04)] flex items-center justify-between gap-12 hover:shadow-[0_8px_32px_rgba(0,0,0,0.08)] transition-all duration-500">

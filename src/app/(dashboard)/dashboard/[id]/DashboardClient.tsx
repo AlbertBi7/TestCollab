@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/hooks/useAuth";
 import { CreateWorkspaceModal } from "@/components/dashboard/CreateWorkspaceModal";
-import { Plus, Bell, ArrowUpRight, Users, FolderPlus, Activity, Zap, Inbox } from "lucide-react";
+import { Plus, ArrowUpRight, Users, FolderPlus, Activity } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { WorkspaceCard } from "@/components/explore";
 
 export default function DashboardClient({
   initialWorkspaces,
@@ -31,6 +32,12 @@ export default function DashboardClient({
   const [activeWorkspaceFilter, setActiveWorkspaceFilter] = useState<"all" | "owned" | "shared" | "public" | "private">("all");
   const [clientFetchError, setClientFetchError] = useState<string | null>(null);
   const [isRefreshingWorkspaces, setIsRefreshingWorkspaces] = useState(false);
+  const [profileSummary, setProfileSummary] = useState({
+    displayName: "Your Profile",
+    followersCount: 0,
+    followingCount: 0,
+    referencesCount: 0,
+  });
 
   const date = new Date().toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
 
@@ -81,6 +88,48 @@ export default function DashboardClient({
 
     fetchDashboardWorkspacesClientSide();
   }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchProfileSummary = async () => {
+      try {
+        const [{ data: profile }, { count: followersCount }, { count: followingCount }, { count: referencesCount }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("display_name")
+            .eq("profile_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("followers")
+            .select("follower_id", { count: "exact", head: true })
+            .eq("following_id", user.id),
+          supabase
+            .from("followers")
+            .select("following_id", { count: "exact", head: true })
+            .eq("follower_id", user.id),
+          supabase
+            .from("references")
+            .select("reference_id", { count: "exact", head: true })
+            .eq("uploaded_by_profile_id", user.id),
+        ]);
+
+        setProfileSummary({
+          displayName: profile?.display_name || user.email || "Your Profile",
+          followersCount: followersCount || 0,
+          followingCount: followingCount || 0,
+          referencesCount: referencesCount || 0,
+        });
+      } catch {
+        setProfileSummary((prev) => ({
+          ...prev,
+          displayName: user.email || prev.displayName,
+        }));
+      }
+    };
+
+    fetchProfileSummary();
+  }, [user?.id, user?.email]);
 
   if (!authLoading && user && user.id !== userId) {
     router.push("/");
@@ -213,19 +262,22 @@ export default function DashboardClient({
             </div>
           </div>
 
-          {/* Global Impact & Activity Widget */}
+          {/* Profile Summary Widget */}
           <div className="bg-[#1c1917] rounded-[48px] p-10 text-white shadow-2xl shadow-stone-900/40 relative overflow-hidden flex flex-col justify-between group">
-            <div className="absolute bottom-0 right-0 p-12 opacity-10 group-hover:scale-110 transition-transform duration-1000">
-              <Zap className="w-32 h-32" />
+            <div className="absolute bottom-0 right-0 p-12 opacity-10 group-hover:opacity-20 transition-opacity duration-700">
+              <Users className="w-32 h-32" />
             </div>
 
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-10">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-lime-400 font-bold">
-                    <Zap className="w-6 h-6" />
+                    <Users className="w-6 h-6" />
                   </div>
-                  <h3 className="text-xl font-medium tracking-tight">Ecosystem Pulse</h3>
+                  <div>
+                    <h3 className="text-xl font-medium tracking-tight">Profile Summary</h3>
+                    <p className="text-[10px] uppercase tracking-widest text-stone-500 font-bold mt-1">Account Snapshot</p>
+                  </div>
                 </div>
                 <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-full">
                   <span className="text-[10px] font-black tracking-widest uppercase text-stone-400">Live Insights</span>
@@ -233,16 +285,17 @@ export default function DashboardClient({
               </div>
 
               <div className="space-y-6">
-                <div className="p-6 rounded-3xl bg-linear-to-br from-white/10 to-transparent border border-white/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">Knowledge Growth</span>
-                    <span className="text-xs text-lime-400 font-mono">+{userReferencesCount || 0}</span>
-                  </div>
-                  <h4 className="text-lg font-medium mb-1">Total Assets Captured</h4>
-                  <p className="text-xs text-stone-400 leading-relaxed">Your personal contribution to the workspace ecosystem continues to scale.</p>
+                <div className="p-5 rounded-3xl bg-white/5 border border-white/10">
+                  <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-2">Creator</p>
+                  <p className="text-xl font-semibold text-white leading-tight truncate">{profileSummary.displayName}</p>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="p-5 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-default">
+                    <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">Workspaces</p>
+                    <p className="text-2xl font-mono text-white leading-none">{workspaces.length}</p>
+                    <p className="text-[9px] text-stone-400 mt-2 italic">Total Spaces</p>
+                  </div>
                   <div className="p-5 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-default">
                     <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">Network</p>
                     <p className="text-2xl font-mono text-white leading-none">{workspaces.length - ownedWorkspaceCount}</p>
@@ -250,41 +303,23 @@ export default function DashboardClient({
                       <Users className="w-3 h-3" /> Shared Spaces
                     </p>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="p-5 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-default">
-                    <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">Reach</p>
-                    <p className="text-2xl font-mono text-white leading-none">{ownedWorkspaceCount * 4 + 2}</p>
+                    <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">References</p>
+                    <p className="text-2xl font-mono text-white leading-none">{profileSummary.referencesCount}</p>
                     <p className="text-[9px] text-stone-400 mt-2 italic flex items-center gap-1">
-                      <Activity className="w-3 h-3" /> Unique Views
+                      <Activity className="w-3 h-3" /> Added by You
                     </p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-4 px-2">
-                  <div className="flex -space-x-3">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="w-8 h-8 rounded-full border-2 border-[#1c1917] bg-stone-800 flex items-center justify-center text-[10px] font-bold overflow-hidden">
-                        <Image 
-                          src={`https://i.pravatar.cc/150?u=${i + 20}`} 
-                          alt="avatar" 
-                          width={32} 
-                          height={32}
-                          className="opacity-70 group-hover:opacity-100 transition-opacity"
-                        />
-                      </div>
-                    ))}
+                  <div className="p-5 rounded-3xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-default">
+                    <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest mb-1">Followers</p>
+                    <p className="text-2xl font-mono text-white leading-none">{profileSummary.followersCount}</p>
+                    <p className="text-[9px] text-stone-400 mt-2 italic">Following {profileSummary.followingCount}</p>
                   </div>
-                  <p className="text-[10px] text-stone-500 font-bold uppercase tracking-widest">Top Contributors</p>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-10 relative z-10 flex gap-3">
-              <Link
-                href="/explore"
-                className="flex-1 h-14 rounded-2xl bg-white text-stone-900 font-bold text-xs uppercase tracking-[0.2em] flex items-center justify-center hover:bg-lime-400 transition-colors"
-              >
-                Global Pulse
-              </Link>
             </div>
           </div>
         </div>
@@ -315,7 +350,7 @@ export default function DashboardClient({
             <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.2em]">Total Assets</span>
             <span className="text-xl font-mono text-stone-900">{workspaces.length}</span>
           </div>
-          <div className="h-10 w-[1px] bg-stone-100 hidden md:block"></div>
+          <div className="h-10 w-px bg-stone-100 hidden md:block"></div>
           <button className="p-3 bg-white border border-stone-200 rounded-2xl hover:bg-stone-50 transition-colors shadow-sm">
             <Users className="w-5 h-5 text-stone-600" />
           </button>
@@ -345,62 +380,43 @@ export default function DashboardClient({
         {filteredWorkspaces.map((workspace, index) => {
           const isOwner = workspace.workspace_owner_id === user?.id;
           return (
-          <Link
-            key={workspace.workspace_id || `workspace-${index}`}
-            href={`/workspace/${workspace.workspace_id}`}
-            className="group bg-white p-4 pb-8 rounded-[48px] hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.12)] transition-all duration-500 cursor-pointer border border-stone-100 hover:border-stone-200 hover:-translate-y-1"
-          >
-            <div className="aspect-4/3 rounded-4xl overflow-hidden relative mb-6">
-              <Image
-                src={workspace.workspace_cover_image || placeholderImages[index % placeholderImages.length]}
-                fill
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                loading="lazy"
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                alt={workspace.workspace_title}
-              />
-              <div className="absolute inset-0 bg-stone-900/10 group-hover:bg-transparent transition-colors duration-500"></div>
-              
-              <div className="absolute top-4 right-4 flex gap-2 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                <button className="w-10 h-10 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-stone-900 border border-stone-200/50 hover:bg-stone-900 hover:text-white transition-colors">
-                  <ArrowUpRight className="w-5 h-5" />
-                </button>
-              </div>
-
-              <span className={`absolute top-4 left-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-sm ${isOwner ? 'bg-lime-500 text-white' : 'bg-white/90 text-stone-700'}`}>
-                {isOwner ? 'Owner' : 'Shared'}
-              </span>
-            </div>
-
-            <div className="px-3">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-2xl font-medium text-stone-900 group-hover:text-stone-700 transition-colors leading-tight">{workspace.workspace_title}</h3>
-                <span className={`mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${workspace.workspace_visibility === 'public' ? 'bg-lime-50 border-lime-200 text-lime-700' : 'bg-stone-50 border-stone-200 text-stone-500'}`}>
-                  {workspace.workspace_visibility}
-                </span>
-              </div>
-              <p className="text-stone-400 text-sm mb-6 line-clamp-2 min-h-10 leading-relaxed">
-                {workspace.workspace_description || 'No description provided for this workspace.'}
-              </p>
-              <div className="flex items-center justify-between border-t border-stone-50 pt-5">
-                <div className="flex items-center gap-2 text-xs font-bold text-stone-500 uppercase tracking-tight">
-                  <Users className="w-3.5 h-3.5 text-stone-400" />
-                  <span>1 Member</span>
-                </div>
-                <div className="flex -space-x-2">
-                  <div className="w-7 h-7 rounded-full bg-stone-200 border-2 border-white"></div>
-                  <div className="w-7 h-7 rounded-full bg-stone-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-stone-400">+</div>
-                </div>
-              </div>
-            </div>
-          </Link>
+            <WorkspaceCard
+              key={workspace.workspace_id || `workspace-${index}`}
+              id={workspace.workspace_id}
+              title={workspace.workspace_title}
+              description={workspace.workspace_description || ""}
+              coverImage={workspace.workspace_cover_image || placeholderImages[index % placeholderImages.length]}
+              category={workspace.workspace_category || "General"}
+              categoryEmoji={workspace.workspace_category_emoji || "📁"}
+              likes={0}
+              showAuthor={true}
+              author={isOwner ? {
+                id: user.id,
+                name: profileSummary.displayName,
+                avatar: user.user_metadata?.avatar_url || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=100",
+              } : undefined}
+              updatedAt={new Date(workspace.workspace_created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              isOwner={isOwner}
+              visibility={workspace.workspace_visibility}
+            />
           );
         })}
       </div>
       ) : workspaces.length > 0 ? (
-        <div className="mt-8 bg-white rounded-[40px] p-10 text-center border border-dashed border-stone-200">
-          <h3 className="text-xl font-medium text-stone-900 mb-2">No matches for this filter</h3>
-          <p className="text-stone-500 text-sm">Try switching filters to view other workspaces.</p>
+        <div className="mt-8 bg-white/40 backdrop-blur-xl rounded-[40px] p-16 text-center border border-dashed border-stone-100 flex flex-col items-center gap-6">
+          <div className="w-16 h-16 rounded-3xl bg-stone-50 flex items-center justify-center text-stone-200">
+            <FolderPlus className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-semibold text-stone-900 mb-2 tracking-tight">Focus your scope</h3>
+            <p className="text-stone-400 text-sm max-w-xs mx-auto leading-relaxed">We couldn't find any {activeWorkspaceFilter} workspaces matching your criteria. Try adjusting your filters.</p>
+          </div>
+          <button 
+            onClick={() => setActiveWorkspaceFilter('all')}
+            className="text-xs font-black uppercase tracking-[0.2em] text-stone-900 hover:text-lime-600 transition-colors"
+          >
+            Clear Selected Filters
+          </button>
         </div>
       ) : null}
 
