@@ -14,7 +14,13 @@ export default async function DashboardRedirectPage() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet: Array<{ name: string; value: string; options: any }>) {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
         },
       },
     }
@@ -24,9 +30,11 @@ export default async function DashboardRedirectPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user?.id) {
+  if (!user) {
+    console.log("No user found in dashboard redirect, going to login");
     redirect("/login");
   }
 
+  console.log("User found in dashboard redirect, going to:", `/dashboard/${user.id}`);
   redirect(`/dashboard/${user.id}`);
 }
