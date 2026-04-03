@@ -286,9 +286,9 @@ export default function ProfilePage({
       </button>
 
       {/* Profile Card */}
-      <div className="bg-white rounded-[48px] p-4 shadow-sm border border-stone-100 mb-12">
+      <div className="bg-white rounded-[48px] p-4 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.1)] border border-stone-100 mb-12">
         {/* Cover Image */}
-        <div className="h-48 md:h-64 w-full rounded-[40px] bg-gradient-to-r from-lime-200 via-emerald-200 to-teal-200 relative overflow-hidden">
+        <div className="h-48 md:h-64 w-full rounded-[40px] bg-gradient-to-r from-lime-200 via-emerald-200 to-teal-200 relative overflow-hidden border-2 border-black/5">
           <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]"></div>
           {profile.cover_url && (
             <Image
@@ -329,7 +329,7 @@ export default function ProfilePage({
             {/* Avatar and Name */}
             <div className="flex flex-col md:flex-row md:items-end gap-6">
               {/* Avatar */}
-              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-8 border-white bg-white overflow-hidden shadow-lg relative z-10">
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-8 border-white bg-white overflow-hidden shadow-2xl relative z-10">
                 <Image
                   src={profile.avatar_url}
                   alt={profile.display_name}
@@ -368,7 +368,7 @@ export default function ProfilePage({
               {user?.id === profile.id ? (
                 <button
                   onClick={() => openEdit("social")}
-                  className="w-12 h-12 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
+                  className="w-12 h-12 rounded-full border-2 border-black flex items-center justify-center text-stone-900 hover:bg-stone-50 transition-colors"
                   title="Edit Social Links"
                 >
                   <Pencil className="w-5 h-5" />
@@ -376,9 +376,9 @@ export default function ProfilePage({
               ) : (
                 <button
                   onClick={handleFollowToggle}
-                  className={`px-8 py-3 rounded-full font-bold transition-colors text-lg ${isFollowing
-                      ? "bg-stone-100 text-stone-900 hover:bg-stone-200 border border-stone-200"
-                      : "bg-[#1c1917] text-white hover:bg-stone-800 shadow-md"
+                  className={`px-8 py-3 rounded-full font-bold transition-all text-lg border-2 border-black ${isFollowing
+                      ? "bg-white text-stone-900 hover:bg-stone-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-2px] hover:translate-y-[-2px]"
+                      : "bg-[#1c1917] text-white hover:bg-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[-2px] hover:translate-y-[-2px]"
                     }`}
                 >
                   {isLoading ? "Updating..." : isFollowing ? "Following" : "Follow"}
@@ -401,7 +401,7 @@ export default function ProfilePage({
                       href={profile.website_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-10 h-10 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
+                      className="w-10 h-10 rounded-full border-2 border-black flex items-center justify-center text-stone-900 hover:bg-stone-50 transition-colors shadow-sm"
                       title="Website"
                     >
                       <Globe className="w-4 h-4" />
@@ -412,7 +412,7 @@ export default function ProfilePage({
                       href={profile.twitter_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-10 h-10 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
+                      className="w-10 h-10 rounded-full border-2 border-black flex items-center justify-center text-stone-900 hover:bg-stone-50 transition-colors shadow-sm"
                       title="Twitter"
                     >
                       <Twitter className="w-4 h-4" />
@@ -423,7 +423,7 @@ export default function ProfilePage({
                       href={profile.linkedin_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-10 h-10 rounded-full border-2 border-stone-200 flex items-center justify-center text-stone-600 hover:bg-stone-50 transition-colors"
+                      className="w-10 h-10 rounded-full border-2 border-black flex items-center justify-center text-stone-900 hover:bg-stone-50 transition-colors shadow-sm"
                       title="LinkedIn"
                     >
                       <Linkedin className="w-4 h-4" />
@@ -436,7 +436,7 @@ export default function ProfilePage({
                       href={customLink.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="h-9 px-3 rounded-full border-2 border-stone-200 flex items-center gap-2 text-stone-600 hover:bg-stone-50 transition-colors text-sm font-medium"
+                      className="h-9 px-3 rounded-full border-2 border-black flex items-center gap-2 text-stone-900 hover:bg-stone-50 transition-colors text-sm font-medium shadow-sm"
                       title={customLink.label}
                     >
                       <Link className="w-3.5 h-3.5" />
@@ -459,7 +459,7 @@ export default function ProfilePage({
               {(profile.skills && profile.skills.length > 0 || user?.id === profile.id) && (
                 <div className="mt-4 relative group">
                   <div className="flex items-center gap-2 mb-3">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-stone-400">Skills</h3>
+                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-stone-400">Capabilities</h3>
                     {user?.id === profile.id && (
                       <button
                         onClick={() => openEdit("skills")}
@@ -474,7 +474,7 @@ export default function ProfilePage({
                     {profile.skills.map((skill, index) => (
                       <span
                         key={index}
-                        className="px-4 py-2 bg-lime-100 text-lime-800 rounded-full text-sm font-medium border border-lime-200 hover:bg-lime-200 transition-colors"
+                        className="px-4 py-2 bg-lime-100 text-lime-800 rounded-2xl text-sm font-bold border-2 border-black hover:bg-lime-200 transition-all"
                       >
                         {skill}
                       </span>
@@ -488,31 +488,31 @@ export default function ProfilePage({
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-8 bg-stone-50 px-8 py-4 rounded-3xl border border-stone-100">
+            <div className="flex items-center gap-8 bg-white px-8 py-4 rounded-[32px] border-2 border-black">
               <div className="text-center">
                 <h4 className="text-2xl font-bold text-stone-900">
                   {stats.spacesCount}
                 </h4>
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 mt-1">
                   Spaces
                 </p>
               </div>
-              <div className="w-px h-10 bg-stone-200"></div>
+              <div className="w-px h-10 bg-black/10"></div>
               <div className="text-center">
                 <h4 className="text-2xl font-bold text-stone-900">
                   {formatNumber(syncedFollowersCount || stats.followersCount)}
                 </h4>
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 mt-1">
                   Followers
                 </p>
               </div>
-              <div className="w-px h-10 bg-stone-200"></div>
+              <div className="w-px h-10 bg-black/10"></div>
               <div className="text-center">
                 <h4 className="text-2xl font-bold text-stone-900">
                   {formatNumber(stats.refsSavedCount)}
                 </h4>
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                  Refs Saved
+                <p className="text-[10px] font-black uppercase tracking-widest text-stone-500 mt-1">
+                  References
                 </p>
               </div>
             </div>

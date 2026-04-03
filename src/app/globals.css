@@ -71,6 +71,7 @@
 
 /* Smooth scroll & selection */
 html { scroll-behavior: smooth; }
+body { background-color: #f7f7f5; }
 ::selection { background-color: #d9f99d; color: #365314; }
 
 /* Float-in Animation */

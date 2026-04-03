@@ -178,8 +178,9 @@ function buildLinkFallbackResponse(params: {
   contentType?: string;
   metadata?: Record<string, any>;
   note?: string;
+  previewFromMeta?: string | null;
 }) {
-  const { url, title, contentType = "text/html", metadata = {}, note } = params;
+  const { url, title, contentType = "text/html", metadata = {}, note, previewFromMeta } = params;
   const fallbackHost = (() => {
     try {
       return new URL(url).hostname;
@@ -203,7 +204,7 @@ function buildLinkFallbackResponse(params: {
         ...metadata,
         source_url: url,
         source: fallbackHost,
-        thumbnail: fallbackPreviewByType("link"),
+        thumbnail: previewFromMeta || fallbackPreviewByType("link"),
         import_note: note || "Saved as link",
       },
     },
@@ -263,12 +264,38 @@ export async function POST(request: NextRequest) {
     ]);
     const isKnownPlatform = knownPlatforms.has(detectedPlatform);
 
-    // Fetch the URL resource
+    // Fetch the URL resource early to get meta if needed
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
     });
+
+    let meta: any = null;
+    let previewFromMeta: string | null = null;
+
+    if (response.ok) {
+      const clonedResponse = response.clone();
+      const contentTypeHead = clonedResponse.headers.get("content-type") || "";
+      if (contentTypeHead.includes("text/html")) {
+        const html = await clonedResponse.text();
+        meta = extractMeta(html);
+        if (meta?.image || meta?.linkImage) {
+          const previewCandidate = meta.image || meta.linkImage;
+          try {
+            const absolutePreviewUrl = toAbsoluteUrl(previewCandidate, url);
+            const uploadedPreview = await uploadPreviewFromUrl({
+              supabase: storageClient,
+              imageUrl: absolutePreviewUrl,
+              baseType: "link",
+            });
+            previewFromMeta = uploadedPreview || absolutePreviewUrl;
+          } catch (err) {
+            console.error("Error generating initial preview:", err);
+          }
+        }
+      }
+    }
 
     if (!response.ok) {
       return buildLinkFallbackResponse({
@@ -277,6 +304,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           platform: detectedPlatform,
         },
+        previewFromMeta,
         note: `Failed to download media (${response.status}); saved as link`,
       });
     }
@@ -287,9 +315,10 @@ export async function POST(request: NextRequest) {
     let blob: Blob;
     let metadata: Record<string, any> = {
       platform: platform || null,
+      thumbnail: previewFromMeta,
     };
     let extractedTitle: string | null = null;
-    let extractedThumbnail: string | null = null;
+    let extractedThumbnail: string | null = previewFromMeta;
     let mode: "direct" | "platform" = "direct";
     let sourceUrl: string = url;
     let effectiveContentType = contentType;
@@ -297,10 +326,11 @@ export async function POST(request: NextRequest) {
 
     if (contentType.includes("text/html")) {
       mode = "platform";
-      const html = await response.text();
-      const meta = extractMeta(html);
-      extractedTitle = meta.title;
-      metadata.description = meta.description;
+      // html already fetched above if it was ok
+      const html = meta ? "" : await response.text(); 
+      const currentMeta = meta || extractMeta(html);
+      extractedTitle = currentMeta.title;
+      metadata.description = currentMeta.description;
 
       if (!isKnownPlatform) {
         return buildLinkFallbackResponse({
@@ -311,34 +341,41 @@ export async function POST(request: NextRequest) {
             ...metadata,
             platform: detectedPlatform,
           },
+          previewFromMeta,
           note: "Platform could not be identified; saved as link",
         });
       }
 
-      const previewCandidate = meta.image || meta.linkImage;
-      if (previewCandidate) {
-        try {
-          const absolutePreviewUrl = toAbsoluteUrl(previewCandidate, url);
-          const uploadedPreview = await uploadPreviewFromUrl({
-            supabase: storageClient,
-            imageUrl: absolutePreviewUrl,
-            baseType: inferredType,
-          });
-          extractedThumbnail = uploadedPreview || absolutePreviewUrl;
-        } catch {
-          extractedThumbnail = extractedThumbnail || null;
+      // Re-use or fetch preview if not already done
+      if (!previewFromMeta) {
+        const previewCandidate = currentMeta.image || currentMeta.linkImage;
+        if (previewCandidate) {
+          try {
+            const absolutePreviewUrl = toAbsoluteUrl(previewCandidate, url);
+            const uploadedPreview = await uploadPreviewFromUrl({
+              supabase: storageClient,
+              imageUrl: absolutePreviewUrl,
+              baseType: inferredType,
+            });
+            previewFromMeta = uploadedPreview || absolutePreviewUrl;
+          } catch {
+            // ignore
+          }
         }
       }
+      extractedThumbnail = previewFromMeta;
+      metadata.thumbnail = extractedThumbnail;
+
       const urlCandidates = extractMediaCandidatesFromUrl(url);
-      const htmlCandidates = extractMediaCandidatesFromHtml(html);
+      const htmlCandidates = meta ? [] : extractMediaCandidatesFromHtml(html); 
       const candidateMediaUrls = [
         ...urlCandidates,
-        meta.video,
-        meta.audio,
-        meta.image,
-        meta.linkImage,
-        meta.jsonLdContentUrl,
-        meta.twitterPlayer,
+        currentMeta.video,
+        currentMeta.audio,
+        currentMeta.image,
+        currentMeta.linkImage,
+        currentMeta.jsonLdContentUrl,
+        currentMeta.twitterPlayer,
         ...htmlCandidates,
       ].filter(Boolean) as string[];
 
@@ -358,20 +395,21 @@ export async function POST(request: NextRequest) {
           const mediaType = mediaResponse.headers.get("content-type") || "application/octet-stream";
           if (mediaType.includes("text/html")) continue;
 
-          blob = await mediaResponse.blob();
+          const mediaBlob = await mediaResponse.blob();
+          blob = mediaBlob;
           effectiveContentType = mediaType;
           sourceUrl = absoluteUrl;
           actualType = inferTypeFromContentType(mediaType, inferTypeFromAssetUrl(absoluteUrl, inferredType));
 
-          if (meta.image) {
+          // If we found a direct media item and didn't have a thumbnail yet, and it's an image, use it
+          if (!extractedThumbnail && mediaType.startsWith("image/")) {
             try {
-              const absolutePreviewUrl = toAbsoluteUrl(meta.image, url);
               const uploadedPreview = await uploadPreviewFromUrl({
                 supabase: storageClient,
-                imageUrl: absolutePreviewUrl,
+                imageUrl: absoluteUrl,
                 baseType: actualType,
               });
-              extractedThumbnail = uploadedPreview || absolutePreviewUrl;
+              extractedThumbnail = uploadedPreview || absoluteUrl;
             } catch {
               extractedThumbnail = null;
             }
@@ -392,15 +430,30 @@ export async function POST(request: NextRequest) {
           metadata: {
             ...metadata,
             platform: detectedPlatform,
-            thumbnail: extractedThumbnail || undefined,
           },
+          previewFromMeta,
           note: "No downloadable media found; saved as link",
         });
       }
     } else {
-      blob = await response.blob();
+      const directBlob = await response.blob();
+      blob = directBlob;
       sourceUrl = url;
       actualType = inferredType;
+      
+      // If direct file is an image and no thumbnail derived yet, use it
+      if (contentType.startsWith("image/") && !extractedThumbnail) {
+          try {
+              const uploadedPreview = await uploadPreviewFromUrl({
+                  supabase: storageClient,
+                  imageUrl: url,
+                  baseType: "image",
+              });
+              extractedThumbnail = uploadedPreview || url;
+          } catch {
+              extractedThumbnail = null;
+          }
+      }
     }
 
     // Generate filename from URL
