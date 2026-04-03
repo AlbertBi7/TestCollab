@@ -9,61 +9,78 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleAuthCallback = async () => {
-      console.log("Auth callback started", window.location.href);
-      // Get the code from URL query params (Supabase uses PKCE flow)
+      // 1. Log entry immediately
+      console.log("🚀 Auth Callback: Initialization", {
+        href: window.location.href,
+        hasCode: !!new URLSearchParams(window.location.search).get("code"),
+        timestamp: new Date().toISOString()
+      });
+
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get("code");
       const error = urlParams.get("error");
       const errorDescription = urlParams.get("error_description");
 
       if (error) {
-        console.error("OAuth error in URL:", error, errorDescription);
-        router.push(`/login?error=${error}`);
+        console.error("❌ OAuth Error from provider:", error, errorDescription);
+        router.replace(`/login?error=${encodeURIComponent(error)}`);
         return;
       }
 
-      // If there's a code, exchange it for a session
       if (code) {
-        console.log("EXCHANGING CODE FOR SESSION...");
+        console.log("⚡ Found code, exchanging for session...");
         try {
-          const { data, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+          const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
-          if (sessionError) {
-            console.error("Error exchanging code for session:", sessionError.message);
-            router.push(`/login?error=session_error&details=${encodeURIComponent(sessionError.message)}`);
+          if (exchangeError) {
+            console.error("❌ Exchange Failed:", exchangeError.message);
+            router.replace(`/login?error=exchange_failed&details=${encodeURIComponent(exchangeError.message)}`);
             return;
           }
 
           if (data?.user) {
-            console.log("SESSION CREATED SUCCESSFULLY", data.user.id);
+            console.log("✅ Session established for:", data.user.id);
+            // use replace instead of push to avoid back-button loop
             router.replace(`/dashboard/${data.user.id}`);
-          } else {
-            console.error("No user found after exchanging code.");
-            router.push("/login?error=user_not_found");
+            return;
           }
-        } catch (err) {
-          console.error("Unexpected error in callback:", err);
-          router.push("/login?error=callback_error");
-        }
-      } else {
-        // Fallback: Check if there's already a session established by the listener
-        console.log("Checking for existing session...");
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          console.log("Existing session found", session.user.id);
-          router.replace(`/dashboard/${session.user.id}`);
-        } else {
-          console.error("No code or session found in callback.");
-          // Only redirect if we've waited long enough for potential async init
-          setTimeout(() => {
-            router.push("/login?error=no_session_found");
-          }, 1000);
+        } catch (err: any) {
+          console.error("❌ Unexpected error during exchange:", err);
+          router.replace(`/login?error=unexpected_callback_error`);
+          return;
         }
       }
+
+      // 2. If no code or exchange didn't redirect, check for existing session
+      console.log("🔍 No code, checking for existing session...");
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error("❌ getSession Error:", sessionError.message);
+      }
+
+      if (session?.user) {
+        console.log("✅ Existing session found, redirecting to dashboard");
+        router.replace(`/dashboard/${session.user.id}`);
+        return;
+      }
+
+      // 3. Fallback: Something is wrong
+      console.warn("⚠️ No code or session found. Redirecting to login shortly...");
+      const timer = setTimeout(() => {
+        router.replace("/login?error=no_session_detected");
+      }, 1500);
+
+      return () => clearTimeout(timer);
     };
 
     handleAuthCallback();
   }, [router]);
 
-  return <div>Loading...</div>;
+  return (
+    <div className="h-screen w-full flex flex-col items-center justify-center bg-[#F2F2F0]">
+      <div className="w-12 h-12 border-4 border-stone-200 border-t-stone-900 rounded-full animate-spin mb-4"></div>
+      <p className="text-stone-500 font-medium animate-pulse">Authenticating...</p>
+    </div>
+  );
 }
