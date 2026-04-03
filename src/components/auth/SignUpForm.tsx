@@ -202,6 +202,7 @@ export function SignUpForm() {
                 <div className="relative group">
                   <input
                     type="text"
+                    autoComplete="name"
                     placeholder="Full Name"
                     value={name}
                     onChange={(e) => {
@@ -244,6 +245,7 @@ export function SignUpForm() {
                 <div className="relative group">
                   <input
                     type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     placeholder="Create Password"
                     value={password}
                     onChange={(e) => {
