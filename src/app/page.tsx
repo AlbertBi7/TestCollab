@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Hero } from "@/components/landing/Hero";
 import { Features } from "@/components/landing/Features";
-import { NavBar } from "@/components/landing/NavBar";
+import { Navbar } from "@/components/landing/NavBar";
 import Link from "next/link";
 import { Infinity } from "lucide-react";
 
@@ -39,7 +39,7 @@ export default function LandingPage() {
 
   return (
     <div className="overflow-x-hidden bg-[#F2F2F0] min-h-screen">
-      <NavBar />
+      <Navbar />
       
       <main>
         <Hero />
