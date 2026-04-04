@@ -1,13 +1,27 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Hero } from "@/components/landing/Hero";
 import { Features } from "@/components/landing/Features";
-import { Navbar } from "@/components/landing/NavBar";
+import { Navbar } from "@/components/landing/Navbar";
 import Link from "next/link";
 import { Infinity } from "lucide-react";
 
 export default function LandingPage() {
+  const router = useRouter();
+  
+  // Handle case where Supabase redirects to root with auth code
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      if (code) {
+        console.log("Redirecting to callback for auth code found on root");
+        router.replace(`/auth/callback?code=${code}`);
+      }
+    }
+  }, [router]);
   
   // Logic to make elements fade in as you scroll
   useEffect(() => {
