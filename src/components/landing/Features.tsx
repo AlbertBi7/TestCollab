@@ -4,34 +4,34 @@ export function Features() {
   return (
     <section id="features" className="max-w-7xl mx-auto px-6 mb-32">
       <div className="text-center mb-16">
-        <h2 className="text-4xl font-bold text-stone-900 mb-4">Everything you need to flow.</h2>
-        <p className="text-stone-500 text-lg max-w-2xl mx-auto">Collabio replaces your scattered bookmarks and folders with a single, visual workspace.</p>
+        <h2 className="text-4xl font-bold text-stone-900 mb-4">Core Workspace Features.</h2>
+        <p className="text-stone-500 text-lg max-w-2xl mx-auto">Build a structured reference library with folders, real-time sync, and configurable visibility.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <FeatureCard 
           icon={<LayoutGrid className="w-7 h-7" />} 
           color="bg-lime-100 text-lime-700"
-          title="Visual Cluster View"
-          desc="Break free from lists. Organize your files, links, and assets in intuitive clusters that mimic how your brain works."
+          title="Nested Organization"
+          desc="Organize your references into folders within workspaces. No more flat lists—just deep, structured hierarchy for your projects."
         />
         <FeatureCard 
           icon={<Zap className="w-7 h-7" />} 
           color="bg-emerald-100 text-emerald-700"
-          title="Instant Capture"
-          desc="Paste a URL, and we'll handle the rest. We automatically detect metadata, generate previews, and sort into folders."
+          title="Automated Metadata"
+          desc="Paste any URL to extracts page titles, descriptions, and thumbnails automatically using our built-in scraper."
         />
         <FeatureCard 
           icon={<Users className="w-7 h-7" />} 
           color="bg-sky-100 text-sky-700"
-          title="Real-time Collaboration"
-          desc="Work together in harmony. See who is viewing what with live cursors and instant updates across your team."
+          title="Collaborative Updates"
+          desc="Powered by Supabase Realtime—every change across folders, tags, and chat syncs instantly across your team."
         />
         <FeatureCard 
           icon={<Lock className="w-7 h-7" />} 
           color="bg-orange-100 text-orange-700"
-          title="Private & Public Spaces"
-          desc="Keep your client work secure in private vaults, or toggle 'Public' to share your moodboard with the world."
+          title="Visibility Controls"
+          desc="Manage workspace access with public or private states. Share your work through the Explore page or keep it secured in your vault."
         />
       </div>
     </section>

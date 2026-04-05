@@ -12,16 +12,16 @@ export function Hero() {
         <div className="relative z-10 reveal active">
           <div className="inline-flex items-center gap-2 bg-white border border-stone-200 px-4 py-1.5 rounded-full mb-8 shadow-sm">
             <span className="flex h-2 w-2 rounded-full bg-lime-500"></span>
-            <span className="text-xs font-bold uppercase tracking-widest text-stone-500">New Public Workspaces</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-stone-500">Supabase Powered Real-time Sync</span>
           </div>
           
           <h1 className="text-6xl md:text-7xl lg:text-8xl font-medium tracking-tight text-stone-900 mb-6 leading-[1.05]">
-            Organize your <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-600 to-emerald-600">creative chaos.</span>
+            Visual space for <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-lime-600 to-emerald-600">your references.</span>
           </h1>
           
           <p className="text-lg md:text-xl text-stone-500 mb-10 max-w-lg leading-relaxed">
-            Collabio is the visual workspace for references, links, and ideas. Stop digging through folders and start connecting the dots.
+            A collaborative workspace to organize links, assets, and project ideas. Build structured folders and share your work with anyone.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4">
