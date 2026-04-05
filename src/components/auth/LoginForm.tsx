@@ -14,12 +14,13 @@ const isValidEmail = (email: string) => {
 };
 
 const getFriendlyError = (message: string): string => {
-  if (message.includes("Invalid login credentials")) return "Incorrect email or password.";
-  if (message.includes("Email not confirmed")) return "Please verify your email before logging in.";
-  if (message.includes("User already registered")) return "An account with this email already exists.";
-  if (message.includes("Network")) return "Connection error. Check your internet and try again.";
-  if (message.toLowerCase().includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
-  if (message.includes("Error sending confirmation email")) return "Could not send confirmation email. Try again shortly.";
+  const normalized = message.toLowerCase();
+  if (normalized.includes("invalid login credentials") || normalized.includes("invalid_grant")) return "Incorrect email or password.";
+  if (normalized.includes("email not confirmed")) return "Please verify your email before logging in.";
+  if (normalized.includes("user already registered")) return "An account with this email already exists.";
+  if (normalized.includes("network")) return "Connection error. Check your internet and try again.";
+  if (normalized.includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
+  if (normalized.includes("error sending confirmation email")) return "Could not send confirmation email. Try again shortly.";
   return "Something went wrong. Please try again.";
 };
 
@@ -32,8 +33,10 @@ export function LoginForm() {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [resetMessage, setResetMessage] = useState("");
+  const [confirmMessage, setConfirmMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isResendingConfirm, setIsResendingConfirm] = useState(false);
   const [showReset, setShowReset] = useState(false);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -42,6 +45,7 @@ export function LoginForm() {
     setEmailError("");
     setPasswordError("");
     setResetMessage("");
+    setConfirmMessage("");
     setIsSubmitting(true);
 
     const normalizedEmail = email.trim().toLowerCase();
@@ -76,6 +80,38 @@ export function LoginForm() {
       setFormError(getFriendlyError(message));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    setFormError("");
+    setConfirmMessage("");
+    setEmailError("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!isValidEmail(normalizedEmail)) {
+      setEmailError("Enter a valid email before resending verification.");
+      return;
+    }
+
+    setIsResendingConfirm(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: normalizedEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setFormError(getFriendlyError(error.message));
+        return;
+      }
+
+      setConfirmMessage("Verification email sent. Please check your inbox.");
+    } finally {
+      setIsResendingConfirm(false);
     }
   };
 
@@ -152,6 +188,12 @@ export function LoginForm() {
             {resetMessage && (
               <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 rounded-xl text-center font-medium border border-green-100">
                 {resetMessage}
+              </div>
+            )}
+
+            {confirmMessage && (
+              <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 rounded-xl text-center font-medium border border-green-100">
+                {confirmMessage}
               </div>
             )}
 
@@ -236,6 +278,17 @@ export function LoginForm() {
                 {!isSubmitting && <ArrowRight className="w-5 h-5" />}
               </button>
             </form>
+
+            {formError.toLowerCase().includes("verify your email") && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={isResendingConfirm}
+                className="w-full mt-4 py-3 bg-white border border-stone-200 text-stone-800 rounded-2xl font-semibold hover:bg-stone-50 transition-colors disabled:opacity-60"
+              >
+                {isResendingConfirm ? "Resending verification..." : "Resend verification email"}
+              </button>
+            )}
 
             <div className="relative flex items-center py-8">
               <div className="flex-grow border-t border-stone-200"></div>

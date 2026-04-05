@@ -1,13 +1,48 @@
 "use client";
 
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, ArrowRight, Home, ShieldCheck } from "lucide-react";
 import { Suspense } from "react";
+import { supabase } from "@/lib/supabase";
 
 function ConfirmContent() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusError, setStatusError] = useState("");
+  const [isResending, setIsResending] = useState(false);
+
+  const handleResend = async () => {
+    setStatusMessage("");
+    setStatusError("");
+
+    if (!email) {
+      setStatusError("Missing email. Please return to signup and try again.");
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        setStatusError(error.message || "Could not resend verification email.");
+        return;
+      }
+
+      setStatusMessage("Verification email resent. Check your inbox and spam folder.");
+    } finally {
+      setIsResending(false);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full bg-[#F2F2F0] flex flex-col items-center justify-center p-6 text-stone-900 overflow-hidden relative">
@@ -27,6 +62,15 @@ function ConfirmContent() {
         </p>
 
         <div className="space-y-4">
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={isResending || !email}
+            className="w-full h-14 bg-white border border-stone-200 text-stone-800 rounded-2xl font-semibold flex items-center justify-center hover:bg-stone-50 transition-all disabled:opacity-60"
+          >
+            {isResending ? "Resending..." : "Resend verification email"}
+          </button>
+
           <Link
             href="/login"
             className="w-full h-14 bg-stone-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-stone-800 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-stone-200"
@@ -43,6 +87,14 @@ function ConfirmContent() {
             Home
           </Link>
         </div>
+
+        {statusMessage && (
+          <p className="mt-4 text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl p-3">{statusMessage}</p>
+        )}
+
+        {statusError && (
+          <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl p-3">{statusError}</p>
+        )}
 
         <div className="mt-10 pt-8 border-t border-stone-100 flex items-center justify-center gap-2 text-stone-400">
           <ShieldCheck className="w-4 h-4" />

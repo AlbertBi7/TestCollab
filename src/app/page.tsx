@@ -11,14 +11,20 @@ import { Infinity } from "lucide-react";
 export default function LandingPage() {
   const router = useRouter();
   
-  // Handle case where Supabase redirects to root with auth code
+  // Handle case where Supabase redirects to root with auth callback params
   useEffect(() => {
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
-      if (code) {
-        console.log("Redirecting to callback for auth code found on root");
-        router.replace(`/auth/callback?code=${code}`);
+      const tokenHash = url.searchParams.get("token_hash");
+      const type = url.searchParams.get("type");
+      const hasAccessTokenInHash = window.location.hash.includes("access_token=");
+
+      if (code || (tokenHash && type) || hasAccessTokenInHash) {
+        const search = url.searchParams.toString();
+        const hash = window.location.hash;
+        console.log("Redirecting to callback for auth params found on root");
+        router.replace(`/auth/callback${search ? `?${search}` : ""}${hash}`);
       }
     }
   }, [router]);
