@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { WorkspaceMember, MemberRole, MemberPermissions, WorkspaceFolder } from "@/types";
 import { useWorkspaceStore } from "@/lib/stores/workspaceStore";
 import { useReferencesStore } from "@/lib/stores/referencesStore";
+import { getDefaultAvatarUrl } from "@/lib/avatar";
 
 interface WorkspaceData {
   workspace_id: string;
@@ -174,7 +175,16 @@ export function useWorkspace(workspaceId: string) {
         .single();
 
       if (ownerError) throw ownerError;
-      setOwner(ownerData);
+      setOwner(
+        ownerData
+          ? {
+              ...ownerData,
+              profile_avatar_url:
+                ownerData.profile_avatar_url ||
+                getDefaultAvatarUrl(ownerData.display_name || ownerData.profile_email || ownerData.profile_id),
+            }
+          : null
+      );
 
       // 3. Fetch references for this workspace with tags
       const { data: referencesData, error: referencesError } = await supabase
@@ -259,7 +269,7 @@ export function useWorkspace(workspaceId: string) {
         profile: profileMap.get(member.profile_id) || {
           profile_id: member.profile_id,
           display_name: 'Unknown User',
-          profile_avatar_url: '',
+          profile_avatar_url: getDefaultAvatarUrl(member.profile_id),
           profile_email: ''
         }
       }));
@@ -274,7 +284,9 @@ export function useWorkspace(workspaceId: string) {
         profile: {
           profile_id: workspaceData.workspace_owner_id,
           display_name: ownerData?.display_name || 'Workspace Owner',
-          profile_avatar_url: ownerData?.profile_avatar_url || '',
+          profile_avatar_url:
+            ownerData?.profile_avatar_url ||
+            getDefaultAvatarUrl(ownerData?.display_name || ownerData?.profile_email || workspaceData.workspace_owner_id),
           profile_email: ownerData?.profile_email || ''
         }
       };

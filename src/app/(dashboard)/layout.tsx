@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import { getDefaultAvatarUrl } from "@/lib/avatar";
 
 interface ArchivedWorkspaceItem {
   workspace_id: string;
@@ -30,7 +31,7 @@ export default function DashboardLayout({
   const [unarchivingWorkspaceId, setUnarchivingWorkspaceId] = useState<string | null>(null);
 
   const displayName = profile?.display_name ?? user?.email ?? "User";
-  const avatarUrl = profile?.profile_avatar_url;
+  const avatarUrl = profile?.profile_avatar_url || getDefaultAvatarUrl(displayName || user?.id);
   const initial = (displayName?.trim()?.[0] || "U").toUpperCase();
 
   useEffect(() => {
@@ -160,20 +161,14 @@ export default function DashboardLayout({
                 className="w-10 h-10 rounded-full overflow-hidden border-2 border-white ring-2 ring-stone-100 cursor-pointer hover:ring-lime-300 transition-all"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               >
-                {avatarUrl ? (
-                  <Image
-                    src={avatarUrl}
-                    width={40}
-                    height={40}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                    alt={displayName}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-stone-200 text-stone-700 flex items-center justify-center text-sm font-bold">
-                    {initial}
-                  </div>
-                )}
+                <Image
+                  src={avatarUrl}
+                  width={40}
+                  height={40}
+                  loading="lazy"
+                  className="w-full h-full object-cover"
+                  alt={displayName || initial}
+                />
               </div>
 
               {/* Dropdown Menu */}

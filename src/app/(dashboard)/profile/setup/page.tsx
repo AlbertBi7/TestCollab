@@ -7,6 +7,7 @@ import { User, Camera, Loader2, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/ui/Toast";
+import { getDefaultAvatarUrl } from "@/lib/avatar";
 
 const AVATAR_BUCKET = "Link-UpWorkpace";
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -26,6 +27,13 @@ const SKILL_SUGGESTIONS = [
   "Project Management",
 ];
 
+const isValidEmail = (email: string) => {
+  const trimmed = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return false;
+  if (!/[a-zA-Z]/.test(trimmed.split("@")[0] || "")) return false;
+  return true;
+};
+
 export default function ProfileSetupPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
@@ -33,6 +41,7 @@ export default function ProfileSetupPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
   const [bio, setBio] = useState("");
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
@@ -56,9 +65,16 @@ export default function ProfileSetupPage() {
 
         if (!error && profile) {
           setDisplayName(profile.display_name || "");
+          setProfileEmail(profile.profile_email || user.email || "");
           setBio(profile.profile_bio || "");
           setSkills(profile.profile_skills || []);
-          setExistingAvatar(profile.profile_avatar_url || "");
+          setExistingAvatar(
+            profile.profile_avatar_url ||
+              getDefaultAvatarUrl(profile.display_name || profile.profile_email || user.email || user.id)
+          );
+        } else {
+          setProfileEmail(user.email || "");
+          setExistingAvatar(getDefaultAvatarUrl(user.email || user.id));
         }
       } catch (err) {
         console.error("Error loading profile:", err);
@@ -119,10 +135,16 @@ export default function ProfileSetupPage() {
       return;
     }
 
+    const normalizedEmail = profileEmail.trim().toLowerCase();
+    if (!isValidEmail(normalizedEmail)) {
+      showToast("Please enter a valid email");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
-      let avatarUrl = existingAvatar;
+      let avatarUrl = existingAvatar || getDefaultAvatarUrl(displayName || normalizedEmail || user.id);
 
       // Upload avatar if a new one was selected
       if (avatarFile) {
@@ -151,11 +173,11 @@ export default function ProfileSetupPage() {
         .from("profiles")
         .upsert({
           profile_id: user.id,
-          profile_email: user.email,
+          profile_email: normalizedEmail,
           display_name: displayName.trim(),
           profile_bio: bio.trim() || null,
           profile_skills: skills,
-          profile_avatar_url: avatarUrl || null,
+          profile_avatar_url: avatarUrl,
           profile_updated_at: new Date().toISOString(),
         });
 
@@ -278,6 +300,29 @@ export default function ProfileSetupPage() {
             />
           </div>
 
+          {/* Email */}
+          <div className="mb-6">
+            <label
+              htmlFor="profileEmail"
+              className="block text-sm font-bold text-stone-900 mb-2"
+            >
+              Email *
+            </label>
+            <input
+              id="profileEmail"
+              type="email"
+              value={profileEmail}
+              onChange={(e) => setProfileEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-stone-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-lime-400 focus:border-transparent transition-all"
+              placeholder="you@example.com"
+              required
+              disabled={isSaving || !!user?.email}
+            />
+            {!!user?.email && (
+              <p className="text-xs text-stone-400 mt-1">Using your verified account email.</p>
+            )}
+          </div>
+
           {/* Bio */}
           <div className="mb-6">
             <label
@@ -387,7 +432,7 @@ export default function ProfileSetupPage() {
             </button>
             <button
               type="submit"
-              disabled={isSaving || !displayName.trim()}
+              disabled={isSaving || !displayName.trim() || !profileEmail.trim()}
               className="flex-1 py-3 rounded-2xl bg-linear-to-tr from-lime-400 to-green-500 text-white font-bold hover:shadow-lg hover:shadow-lime-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? (

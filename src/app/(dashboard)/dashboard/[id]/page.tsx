@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import DashboardClient from "./DashboardClient";
+import { getDefaultAvatarUrl } from "@/lib/avatar";
 
 export default async function UserDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: userId } = await params;
@@ -25,7 +27,39 @@ export default async function UserDashboardPage({ params }: { params: Promise<{ 
     data: { user: authUser },
   } = await supabase.auth.getUser();
 
-  const effectiveUserId = authUser?.id || userId;
+  if (!authUser) {
+    redirect("/login");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name, profile_email, profile_avatar_url")
+    .eq("profile_id", authUser.id)
+    .maybeSingle();
+
+  const displayName = profile?.display_name?.trim() || "";
+  const profileEmail = profile?.profile_email?.trim() || "";
+  const authEmail = authUser.email?.trim() || "";
+
+  const hasRequiredName = displayName.length > 0;
+  const hasRequiredEmail = (profileEmail || authEmail).length > 0;
+
+  if (!hasRequiredName || !hasRequiredEmail) {
+    redirect("/profile/setup");
+  }
+
+  if (!profile?.profile_avatar_url?.trim()) {
+    const defaultAvatar = getDefaultAvatarUrl(displayName || profileEmail || authEmail || authUser.id);
+    await supabase.from("profiles").upsert(
+      {
+        profile_id: authUser.id,
+        profile_avatar_url: defaultAvatar,
+      },
+      { onConflict: "profile_id" }
+    );
+  }
+
+  const effectiveUserId = authUser.id || userId;
 
   const [{ data: memberRows }, { data: ownedWorkspaces }, { count: userReferencesCount }] = await Promise.all([
     supabase
