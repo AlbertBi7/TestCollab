@@ -7,12 +7,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { User, Mail, Lock, Eye, EyeOff, Check, CheckCircle2, Github, Loader2, Infinity } from "lucide-react";
 
-const nameRegex = /^[A-Za-z ]+$/;
+const nameRegex = /^[A-Za-z' -]+$/;
 
 const isValidName = (name: string) => {
   const trimmed = name.trim();
   if (trimmed.length < 2 || trimmed.length > 50) return false;
-  if (!/^[A-Za-z ]+$/.test(trimmed)) return false;
   return nameRegex.test(trimmed);
 };
 
@@ -206,8 +205,8 @@ export function SignUpForm() {
                     placeholder="Full Name"
                     value={name}
                     onChange={(e) => {
-                      const onlyLettersAndSpaces = e.target.value.replace(/[^A-Za-z ]/g, "");
-                      setName(onlyLettersAndSpaces);
+                      const onlyAllowedNameChars = e.target.value.replace(/[^A-Za-z' -]/g, "");
+                      setName(onlyAllowedNameChars);
                       setNameError("");
                       setError("");
                     }}
