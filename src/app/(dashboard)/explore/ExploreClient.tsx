@@ -47,6 +47,17 @@ const placeholderImages = [
 
 const defaultAvatar = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=100";
 
+const isKnownDisplayName = (displayName?: string | null) => {
+  const normalized = (displayName || "").trim().toLowerCase();
+  return (
+    normalized.length > 0 &&
+    normalized !== "unknown user" &&
+    normalized !== "unknown" &&
+    normalized !== "anonymous user" &&
+    normalized !== "anonymous"
+  );
+};
+
 export default function ExploreClient({
   initialWorkspaces,
   initialProfiles,
@@ -67,33 +78,37 @@ export default function ExploreClient({
   const [hasSearched, setHasSearched] = useState(false);
 
   const [trendingWorkspaces] = useState<any[]>(
-    (initialWorkspaces || []).map((ws, index) => ({
-      id: ws.workspace_id,
-      title: ws.workspace_title || "Untitled Workspace",
-      description: ws.workspace_description || "No description available",
-      coverImage: placeholderImages[index % placeholderImages.length],
-      category: "General",
-      categoryEmoji: "📁",
-      likes: 0,
-      isLiked: false,
-      author: {
-        id: ws.workspace_owner_id || ws.profile_id,
-        name: ws.display_name || "Unknown User",
-        avatar: ws.profile_avatar_url || defaultAvatar,
-      },
-    }))
+    (initialWorkspaces || [])
+      .filter((ws) => isKnownDisplayName(ws.display_name))
+      .map((ws, index) => ({
+        id: ws.workspace_id,
+        title: ws.workspace_title || "Untitled Workspace",
+        description: ws.workspace_description || "No description available",
+        coverImage: placeholderImages[index % placeholderImages.length],
+        category: "General",
+        categoryEmoji: "📁",
+        likes: 0,
+        isLiked: false,
+        author: {
+          id: ws.workspace_owner_id || ws.profile_id,
+          name: ws.display_name,
+          avatar: ws.profile_avatar_url || defaultAvatar,
+        },
+      }))
   );
   const [featuredCreators] = useState<any[]>(
-    (initialProfiles || []).map((profile) => ({
-      id: profile.profile_id,
-      name: profile.display_name || "Anonymous User",
-      username: profile.display_name?.toLowerCase().replace(/\s+/g, '') || profile.profile_id.slice(0, 8),
-      role: "Creator",
-      avatar: profile.profile_avatar_url || defaultAvatar,
-      spacesCount: profile.workspaces_count || 0,
-      followersCount: profile.followers_count || 0,
-      isFollowing: profile.is_following || false,
-    }))
+    (initialProfiles || [])
+      .filter((profile) => isKnownDisplayName(profile.display_name))
+      .map((profile) => ({
+        id: profile.profile_id,
+        name: profile.display_name,
+        username: profile.display_name?.toLowerCase().replace(/\s+/g, '') || profile.profile_id.slice(0, 8),
+        role: "Creator",
+        avatar: profile.profile_avatar_url || defaultAvatar,
+        spacesCount: profile.workspaces_count || 0,
+        followersCount: profile.followers_count || 0,
+        isFollowing: profile.is_following || false,
+      }))
   );
 
   const handleSearch = async () => {
@@ -242,16 +257,25 @@ export default function ExploreClient({
 
       const userFollowingSet = new Set((userFollowingsData || []).map((f: any) => f.following_id));
 
-      setSearchResults({
-        workspaces: workspacesWithProfiles as WorkspaceResult[],
-        creators: creators?.map((c: any) => ({
+      const filteredWorkspaces = (workspacesWithProfiles as WorkspaceResult[]).filter((workspace) => {
+        const workspaceProfile = getWorkspaceProfile(workspace);
+        return !!workspaceProfile && isKnownDisplayName(workspaceProfile.display_name);
+      });
+
+      const filteredCreators = (creators || [])
+        .filter((c: any) => isKnownDisplayName(c.display_name))
+        .map((c: any) => ({
           profile_id: c.profile_id,
           display_name: c.display_name,
           profile_avatar_url: c.profile_avatar_url,
           workspaces_count: workspaceCountsMap[c.profile_id] || 0,
           followers_count: followerCountsMap[c.profile_id] || 0,
           is_following: userFollowingSet.has(c.profile_id)
-        })) || [],
+        }));
+
+      setSearchResults({
+        workspaces: filteredWorkspaces,
+        creators: filteredCreators,
       });
     } catch {
     } finally {

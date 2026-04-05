@@ -2,6 +2,21 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import ExploreClient from "./ExploreClient";
 
+const WORKSPACE_FETCH_LIMIT = 9;
+const PROFILE_FETCH_LIMIT = 8;
+const CANDIDATE_FETCH_LIMIT = 40;
+
+const isKnownDisplayName = (displayName?: string | null) => {
+  const normalized = (displayName || "").trim().toLowerCase();
+  return (
+    normalized.length > 0 &&
+    normalized !== "unknown user" &&
+    normalized !== "unknown" &&
+    normalized !== "anonymous user" &&
+    normalized !== "anonymous"
+  );
+};
+
 export default async function ExplorePage() {
   const cookieStore = await cookies();
 
@@ -22,21 +37,50 @@ export default async function ExplorePage() {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ data: publicWorkspaces }, { data: profiles }] = await Promise.all([
+  const [{ data: publicWorkspaces }, { data: rawProfiles }] = await Promise.all([
     supabase
       .from("workspaces")
       .select("workspace_id, workspace_title, workspace_description, workspace_visibility, workspace_created_at, workspace_owner_id")
       .eq("workspace_visibility", "public")
       .eq("is_archived", false)
-      .limit(10),
+      .order("workspace_created_at", { ascending: false })
+      .limit(CANDIDATE_FETCH_LIMIT),
     supabase
       .from("profiles")
       .select("profile_id, display_name, profile_avatar_url, profile_skills")
-      .limit(10),
+      .limit(CANDIDATE_FETCH_LIMIT),
   ]);
 
-  if (!profiles || profiles.length === 0) {
-    return <ExploreClient initialWorkspaces={publicWorkspaces || []} initialProfiles={[]} />;
+  const ownerIds = Array.from(new Set((publicWorkspaces || []).map((w) => w.workspace_owner_id).filter(Boolean)));
+
+  const { data: ownerProfiles } = ownerIds.length
+    ? await supabase
+        .from("profiles")
+        .select("profile_id, display_name, profile_avatar_url")
+        .in("profile_id", ownerIds)
+    : { data: [] as any[] };
+
+  const ownerProfileMap = new Map((ownerProfiles || []).map((p: any) => [p.profile_id, p]));
+
+  const filteredWorkspaces = (publicWorkspaces || [])
+    .map((workspace: any) => {
+      const owner = ownerProfileMap.get(workspace.workspace_owner_id);
+      if (!owner || !isKnownDisplayName(owner.display_name)) return null;
+      return {
+        ...workspace,
+        display_name: owner.display_name,
+        profile_avatar_url: owner.profile_avatar_url,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, WORKSPACE_FETCH_LIMIT);
+
+  const profiles = (rawProfiles || [])
+    .filter((p: any) => isKnownDisplayName(p.display_name))
+    .slice(0, PROFILE_FETCH_LIMIT);
+
+  if (!profiles.length) {
+    return <ExploreClient initialWorkspaces={filteredWorkspaces} initialProfiles={[]} />;
   }
 
   const profileIds = profiles.map(p => p.profile_id);
@@ -73,5 +117,5 @@ export default async function ExplorePage() {
     is_following: userFollowingSet.has(p.profile_id)
   }));
 
-  return <ExploreClient initialWorkspaces={publicWorkspaces || []} initialProfiles={transformedProfiles} />;
-}
+  return <ExploreClient initialWorkspaces={filteredWorkspaces} initialProfiles={transformedProfiles} />;
+}
