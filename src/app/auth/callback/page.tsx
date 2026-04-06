@@ -11,6 +11,21 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleAuthCallback = async () => {
+      const goToDashboardIfSessionExists = async () => {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          // Clean callback params from URL before navigation.
+          window.history.replaceState({}, document.title, "/auth/callback");
+          router.replace(`/dashboard/${session.user.id}`);
+          return true;
+        }
+
+        return false;
+      };
+
       // 1. Log entry immediately
       console.log("🚀 Auth Callback: Initialization", {
         href: window.location.href,
@@ -37,19 +52,34 @@ export default function AuthCallback() {
           const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
           if (exchangeError) {
-            console.error("❌ Exchange Failed:", exchangeError.message);
-            router.replace(`/login?error=exchange_failed&details=${encodeURIComponent(exchangeError.message)}`);
+            const message = exchangeError.message || "";
+
+            // When detectSessionInUrl already consumed the PKCE code, a second manual
+            // exchange can throw verifier-missing. Reuse existing session if present.
+            if (message.toLowerCase().includes("code verifier not found in storage")) {
+              const recovered = await goToDashboardIfSessionExists();
+              if (recovered) return;
+            }
+
+            console.error("❌ Exchange Failed:", message);
+            router.replace(`/login?error=exchange_failed&details=${encodeURIComponent(message)}`);
             return;
           }
 
           if (data?.user) {
             console.log("✅ Session established for:", data.user.id);
+            window.history.replaceState({}, document.title, "/auth/callback");
             // use replace instead of push to avoid back-button loop
             router.replace(`/dashboard/${data.user.id}`);
             return;
           }
+
+          const recovered = await goToDashboardIfSessionExists();
+          if (recovered) return;
         } catch (err: any) {
           console.error("❌ Unexpected error during exchange:", err);
+          const recovered = await goToDashboardIfSessionExists();
+          if (recovered) return;
           router.replace(`/login?error=unexpected_callback_error`);
           return;
         }
@@ -72,6 +102,7 @@ export default function AuthCallback() {
           const { data: { session } } = await supabase.auth.getSession();
 
           if (session?.user) {
+            window.history.replaceState({}, document.title, "/auth/callback");
             router.replace(`/dashboard/${session.user.id}`);
             return;
           }

@@ -189,6 +189,7 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId, folders = [], 
 
     if (activeTab === 'link') {
       const referenceUrl = linkUrl.trim();
+      const userProvidedTitle = title.trim();
       setError(null);
 
       // 1. Validate URL and current user
@@ -213,7 +214,7 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId, folders = [], 
       if (!type) type = "link";
 
       // 4. Insert placeholder row first
-      const placeholderTitle = (() => {
+      const placeholderTitle = userProvidedTitle || (() => {
         try {
           return new URL(referenceUrl).hostname;
         } catch {
@@ -225,7 +226,7 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId, folders = [], 
         workspace_id: wsId,
         uploaded_by_profile_id: currentUserId,
         reference_title: placeholderTitle,
-        reference_type: type,
+        reference_type: "link",
         reference_url: referenceUrl,
         reference_metadata: {
           source_url: referenceUrl,
@@ -320,7 +321,7 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId, folders = [], 
 
           const readyUpdate: Record<string, any> = {
             reference_url: finalUrl,
-            reference_title: data.fileName || data.title || placeholderTitle,
+            reference_title: userProvidedTitle || data.title || data.fileName || placeholderTitle,
             reference_type: finalType,
             reference_metadata: {
               source_url: referenceUrl,
@@ -339,7 +340,7 @@ export function AddReferenceModal({ isOpen, onClose, workspaceId, folders = [], 
           const failedUpdate: Record<string, any> = {
             reference_url: referenceUrl,
             reference_type: 'link',
-            reference_title: (() => { try { return new URL(referenceUrl).hostname; } catch { return 'Import failed'; } })(),
+            reference_title: userProvidedTitle || placeholderTitle,
           };
 
           if (statusColumnSupported) {

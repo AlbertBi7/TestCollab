@@ -252,17 +252,6 @@ export async function POST(request: NextRequest) {
     const userId: string | null = user.id;
 
     const detectedPlatform = (platform || "web").toLowerCase();
-    const knownPlatforms = new Set([
-      "youtube",
-      "vimeo",
-      "instagram",
-      "tiktok",
-      "soundcloud",
-      "spotify",
-      "x",
-      "pinterest",
-    ]);
-    const isKnownPlatform = knownPlatforms.has(detectedPlatform);
 
     // Fetch the URL resource early to get meta if needed
     const response = await fetch(url, {
@@ -272,6 +261,7 @@ export async function POST(request: NextRequest) {
     });
 
     let meta: any = null;
+    let htmlContent: string | null = null;
     let previewFromMeta: string | null = null;
 
     if (response.ok) {
@@ -279,6 +269,7 @@ export async function POST(request: NextRequest) {
       const contentTypeHead = clonedResponse.headers.get("content-type") || "";
       if (contentTypeHead.includes("text/html")) {
         const html = await clonedResponse.text();
+        htmlContent = html;
         meta = extractMeta(html);
         if (meta?.image || meta?.linkImage) {
           const previewCandidate = meta.image || meta.linkImage;
@@ -313,7 +304,7 @@ export async function POST(request: NextRequest) {
     const inferredType = inferTypeFromContentType(contentType, type);
 
     let blob: Blob | null = null;
-    let metadata: Record<string, any> = {
+    const metadata: Record<string, any> = {
       platform: platform || null,
       thumbnail: previewFromMeta,
     };
@@ -327,24 +318,10 @@ export async function POST(request: NextRequest) {
     if (contentType.includes("text/html")) {
       mode = "platform";
       // html already fetched above if it was ok
-      const html = meta ? "" : await response.text(); 
+      const html = htmlContent ?? await response.text();
       const currentMeta = meta || extractMeta(html);
       extractedTitle = currentMeta.title;
       metadata.description = currentMeta.description;
-
-      if (!isKnownPlatform) {
-        return buildLinkFallbackResponse({
-          url,
-          title: extractedTitle,
-          contentType,
-          metadata: {
-            ...metadata,
-            platform: detectedPlatform,
-          },
-          previewFromMeta,
-          note: "Platform could not be identified; saved as link",
-        });
-      }
 
       // Re-use or fetch preview if not already done
       if (!previewFromMeta) {
@@ -367,7 +344,7 @@ export async function POST(request: NextRequest) {
       metadata.thumbnail = extractedThumbnail;
 
       const urlCandidates = extractMediaCandidatesFromUrl(url);
-      const htmlCandidates = meta ? [] : extractMediaCandidatesFromHtml(html); 
+      const htmlCandidates = extractMediaCandidatesFromHtml(html);
       const candidateMediaUrls = [
         ...urlCandidates,
         currentMeta.video,
@@ -512,10 +489,32 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
-      return NextResponse.json(
-        { error: `Upload failed: ${uploadError.message}` },
-        { status: 500 }
-      );
+      const sourceHost = (() => {
+        try {
+          return new URL(sourceUrl || url).hostname;
+        } catch {
+          return null;
+        }
+      })();
+
+      return NextResponse.json({
+        success: true,
+        mode,
+        sourceUrl,
+        publicUrl: null,
+        fileName,
+        type: actualType,
+        actualType,
+        contentType: effectiveContentType,
+        title: extractedTitle || null,
+        metadata: {
+          ...metadata,
+          source_url: sourceUrl,
+          source: sourceHost,
+          thumbnail: extractedThumbnail || fallbackPreviewByType(actualType),
+          import_note: `Downloaded media but storage upload failed (${uploadError.message}); using source URL`,
+        },
+      });
     }
 
     // Get public URL

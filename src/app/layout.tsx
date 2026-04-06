@@ -4,7 +4,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AuthBootstrap } from "@/components/auth/AuthBootstrap";
 
-const outfit = Outfit({ subsets: ["latin"], display: "swap" }); // Configure it
+const outfit = Outfit({ subsets: ["latin"], display: "swap", preload: false }); // Configure it
 
 export const metadata: Metadata = {
   title: "Collabio - Organize Your Flow",
